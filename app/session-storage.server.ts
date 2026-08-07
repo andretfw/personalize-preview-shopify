@@ -1,7 +1,7 @@
 import type { Session } from "@shopify/shopify-api";
 import type { SessionStorage } from "@shopify/shopify-app-session-storage";
 
-type SessionProperty = [string, string | number | boolean];
+type JsonProperty = [string, string | number | boolean | null];
 
 type KvNamespace = {
   put(key: string, value: string): Promise<void>;
@@ -33,6 +33,8 @@ async function getPrismaStorage(): Promise<SessionStorage> {
 }
 
 async function getCloudflareKv(): Promise<KvNamespace> {
+  // This module is provided by the Cloudflare Workers runtime at deploy time.
+  // eslint-disable-next-line import/no-unresolved
   const cloudflare = (await import("cloudflare:workers")) as {
     env?: Record<string, unknown>;
   };
@@ -96,7 +98,7 @@ class HybridSessionStorage implements SessionStorage {
     }
 
     const namespace = await getCloudflareKv();
-    const properties = await namespace.get<SessionProperty[]>(id, "json");
+    const properties = await namespace.get<JsonProperty[]>(id, "json");
 
     if (!properties) {
       return undefined;
