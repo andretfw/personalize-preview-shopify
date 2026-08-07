@@ -52,8 +52,16 @@ export default defineConfig({
     reactRouter(),
     tsconfigPaths(),
   ],
+  ssr: {
+    // Cloudflare provides this runtime module when deployed as a Worker.
+    // Keeping it external lets the same source still build under Node in CI.
+    external: ["cloudflare:workers"],
+  },
   build: {
     assetsInlineLimit: 0,
+    rollupOptions: {
+      external: ["cloudflare:workers"],
+    },
   },
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
