@@ -1,48 +1,131 @@
 import { authenticate } from "../shopify.server";
 
-const MAX_FILE_SIZE = 15 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const MEDIA_IMAGE_GID_PREFIX = "gid://shopify/MediaImage/";
 
-const ALLOWED_FILE_TYPES = new Set([
-  "image/png",
+const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
+  "image/png",
   "image/webp",
 ]);
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
+type AdminClient = {
+  graphql: (
+    query: string,
+    options?: { variables?: Record<string, unknown> },
+  ) => Promise<Response>;
+};
+
+type GraphqlEnvelope<TData> = {
+  data?: TData;
+  errors?: Array<{ message?: string }>;
+};
+
+type ProxyRequest = {
+  action?: unknown;
+  filename?: unknown;
+  mimeType?: unknown;
+  fileSize?: unknown;
+  resourceUrl?: unknown;
+  fileId?: unknown;
+};
+
+type StagedUploadData = {
+  stagedUploadsCreate?: {
+    stagedTargets?: Array<{
+      url: string;
+      resourceUrl: string;
+      parameters: Array<{ name: string; value: string }>;
+    }>;
+    userErrors: Array<{ field?: string[]; message: string }>;
+  };
+};
+
+type FileCreateData = {
+  fileCreate?: {
+    files?: Array<{
+      id?: string;
+      fileStatus?: string;
+      image?: { url?: string | null } | null;
+    }>;
+    userErrors: Array<{ field?: string[]; message: string }>;
+  };
+};
+
+type FileStatusData = {
+  node?: {
+    id?: string;
+    fileStatus?: string;
+    fileErrors?: Array<{ message?: string | null }>;
+    image?: { url?: string | null } | null;
+  } | null;
+};
+
+function json(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
     status,
     headers: {
-      "Content-Type": "application/json",
       "Cache-Control": "no-store",
+      "Content-Type": "application/json; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
 
-function safeFilename(filename: string) {
-  const cleaned = filename
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function sanitizeFilename(filename: string) {
+  const sanitized = filename
     .replace(/[^a-zA-Z0-9._-]/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(-120);
 
-  const finalName =
-    cleaned || "customer-artwork.png";
-
-  return `personalization-${Date.now()}-${finalName}`;
+  return sanitized || "customer-artwork.png";
 }
 
-async function getFileStatus(
-  admin: any,
-  fileId: string,
+function firstUserError(
+  errors: Array<{ message: string }> | undefined,
+  fallback: string,
 ) {
-  const response = await admin.graphql(
+  return errors?.[0]?.message || fallback;
+}
+
+async function graphql<TData>(
+  admin: AdminClient,
+  query: string,
+  variables?: Record<string, unknown>,
+): Promise<TData> {
+  const response = await admin.graphql(query, { variables });
+  const payload = (await response.json()) as GraphqlEnvelope<TData>;
+
+  if (payload.errors?.length) {
+    throw new Error(
+      payload.errors.map((error) => error.message || "GraphQL error").join("; "),
+    );
+  }
+
+  if (!payload.data) {
+    throw new Error("Shopify returned an empty GraphQL response.");
+  }
+
+  return payload.data;
+}
+
+async function getFileStatus(admin: AdminClient, fileId: string) {
+  const data = await graphql<FileStatusData>(
+    admin,
     `#graphql
       query PersonalizationFileStatus($id: ID!) {
         node(id: $id) {
           ... on MediaImage {
             id
             fileStatus
-
+            fileErrors {
+              message
+            }
             image {
               url
             }
@@ -50,230 +133,127 @@ async function getFileStatus(
         }
       }
     `,
-    {
-      variables: {
-        id: fileId,
-      },
-    },
+    { id: fileId },
   );
 
-  const result = (await response.json()) as {
-    data?: {
-      node?: {
-        id?: string;
-        fileStatus?: string;
-        image?: {
-          url?: string | null;
-        } | null;
-      } | null;
-    };
+  const node = data.node;
 
-    errors?: Array<{
-      message?: string;
-    }>;
-  };
-
-  if (result.errors?.length) {
-    throw new Error(
-      result.errors[0]?.message ||
-        "Unable to check the uploaded file.",
-    );
+  if (!node?.id) {
+    throw new Error("Shopify could not find the uploaded image.");
   }
 
   return {
-    id: result.data?.node?.id || fileId,
-    status:
-      result.data?.node?.fileStatus ||
-      "PROCESSING",
-    url:
-      result.data?.node?.image?.url ||
-      null,
+    id: node.id,
+    status: node.fileStatus || "PROCESSING",
+    url: node.image?.url || null,
+    error: node.fileErrors?.[0]?.message || null,
   };
 }
 
-
-/*
- * GET /apps/personalize-preview
- *
- * Simple health check.
+/**
+ * Health endpoint for the configured app-proxy destination.
+ * It intentionally exposes no store or authentication data.
  */
-export async function loader({
-  request,
-}: {
-  request: Request;
-}) {
-  await authenticate.public.appProxy(request);
-
+export async function loader() {
   return json({
     ok: true,
-    message:
-      "Personalize Preview proxy is working",
+    service: "personalize-preview",
   });
 }
 
-
-/*
- * POST /apps/personalize-preview
- *
- * IMPORTANT:
- * This route now accepts JSON only.
- *
- * The actual customer image will NOT be posted
- * through the Shopify app proxy.
+/**
+ * Storefront app-proxy endpoint.
+ * The image bytes never pass through this route. The browser uploads directly
+ * to Shopify's staged-upload destination and this endpoint only exchanges JSON.
  */
-export async function action({
-  request,
-}: {
-  request: Request;
-}) {
+export async function action({ request }: { request: Request }) {
+  let admin: AdminClient | undefined;
+
   try {
-    const context =
-      await authenticate.public.appProxy(request);
+    const context = await authenticate.public.appProxy(request);
+    admin = context.admin as AdminClient | undefined;
+  } catch (error) {
+    console.error("Rejected app-proxy request:", error);
+    return json({ ok: false, error: "Invalid personalization request." }, 401);
+  }
 
-    const admin = context.admin;
+  if (!admin) {
+    return json(
+      {
+        ok: false,
+        error: "The personalization service is not connected to this store.",
+      },
+      401,
+    );
+  }
 
-    if (!admin) {
-      return json(
-        {
-          ok: false,
-          error:
-            "The Shopify Admin session is unavailable.",
-        },
-        401,
-      );
-    }
+  const contentType = request.headers.get("content-type") || "";
 
-    const contentType =
-      request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return json({ ok: false, error: "Expected a JSON request." }, 415);
+  }
 
-    if (
-      !contentType.includes(
-        "application/json",
-      )
-    ) {
-      return json(
-        {
-          ok: false,
-          error:
-            "This endpoint accepts JSON requests only.",
-        },
-        415,
-      );
-    }
+  let body: ProxyRequest;
 
-    const body = (await request.json()) as {
-      action?: string;
+  try {
+    body = (await request.json()) as ProxyRequest;
+  } catch {
+    return json({ ok: false, error: "The request body is invalid." }, 400);
+  }
 
-      filename?: string;
-      mimeType?: string;
-      fileSize?: number;
+  try {
+    switch (body.action) {
+      case "prepare-upload": {
+        const filename = stringValue(body.filename);
+        const mimeType = stringValue(body.mimeType);
+        const fileSize =
+          typeof body.fileSize === "number" && Number.isFinite(body.fileSize)
+            ? body.fileSize
+            : 0;
 
-      resourceUrl?: string;
+        if (!filename) {
+          return json({ ok: false, error: "The image filename is missing." }, 400);
+        }
 
-      fileId?: string;
-    };
+        if (!ALLOWED_IMAGE_TYPES.has(mimeType)) {
+          return json(
+            {
+              ok: false,
+              error: "Please upload a PNG, JPG, JPEG, or WebP image.",
+            },
+            400,
+          );
+        }
 
+        if (fileSize <= 0) {
+          return json({ ok: false, error: "The uploaded image is empty." }, 400);
+        }
 
-    /*
-     * ==========================================
-     * STEP 1
-     * ASK SHOPIFY FOR A STAGED UPLOAD DESTINATION
-     * ==========================================
-     */
+        if (fileSize > MAX_FILE_SIZE_BYTES) {
+          return json(
+            {
+              ok: false,
+              error: "The image is too large. Please use a file under 15 MB.",
+            },
+            400,
+          );
+        }
 
-    if (body.action === "prepare-upload") {
-      const filename =
-        typeof body.filename === "string"
-          ? body.filename.trim()
-          : "";
+        const safeFilename = `personalization-${Date.now()}-${sanitizeFilename(filename)}`;
 
-      const mimeType =
-        typeof body.mimeType === "string"
-          ? body.mimeType.trim()
-          : "";
-
-      const fileSize =
-        typeof body.fileSize === "number"
-          ? body.fileSize
-          : 0;
-
-
-      if (!filename) {
-        return json(
-          {
-            ok: false,
-            error:
-              "The image filename is missing.",
-          },
-          400,
-        );
-      }
-
-
-      if (
-        !ALLOWED_FILE_TYPES.has(mimeType)
-      ) {
-        return json(
-          {
-            ok: false,
-            error:
-              "Please upload a PNG, JPG, JPEG, or WebP image.",
-          },
-          400,
-        );
-      }
-
-
-      if (
-        !Number.isFinite(fileSize) ||
-        fileSize <= 0
-      ) {
-        return json(
-          {
-            ok: false,
-            error:
-              "The uploaded image is empty.",
-          },
-          400,
-        );
-      }
-
-
-      if (fileSize > MAX_FILE_SIZE) {
-        return json(
-          {
-            ok: false,
-            error:
-              "The image is too large. Please use a file under 15 MB.",
-          },
-          400,
-        );
-      }
-
-
-      const finalFilename =
-        safeFilename(filename);
-
-
-      const stagedResponse =
-        await admin.graphql(
+        const data = await graphql<StagedUploadData>(
+          admin,
           `#graphql
-            mutation PersonalizationStagedUpload(
-              $input: [StagedUploadInput!]!
-            ) {
-              stagedUploadsCreate(
-                input: $input
-              ) {
+            mutation PersonalizationStagedUpload($input: [StagedUploadInput!]!) {
+              stagedUploadsCreate(input: $input) {
                 stagedTargets {
                   url
                   resourceUrl
-
                   parameters {
                     name
                     value
                   }
                 }
-
                 userErrors {
                   field
                   message
@@ -282,199 +262,71 @@ export async function action({
             }
           `,
           {
-            variables: {
-              input: [
-                {
-                  filename:
-                    finalFilename,
+            input: [
+              {
+                filename: safeFilename,
+                mimeType,
+                httpMethod: "POST",
+                resource: "IMAGE",
+              },
+            ],
+          },
+        );
 
-                  mimeType,
+        const result = data.stagedUploadsCreate;
 
-                  fileSize:
-                    String(fileSize),
-
-                  resource: "IMAGE",
-
-                  httpMethod: "POST",
-                },
-              ],
+        if (result?.userErrors?.length) {
+          return json(
+            {
+              ok: false,
+              error: firstUserError(
+                result.userErrors,
+                "Shopify could not prepare the artwork upload.",
+              ),
             },
+            400,
+          );
+        }
+
+        const target = result?.stagedTargets?.[0];
+
+        if (!target?.url || !target.resourceUrl) {
+          throw new Error("Shopify returned no staged-upload target.");
+        }
+
+        return json({
+          ok: true,
+          upload: {
+            url: target.url,
+            resourceUrl: target.resourceUrl,
+            parameters: target.parameters || [],
+            filename: safeFilename,
           },
-        );
-
-
-      const stagedResult =
-        (await stagedResponse.json()) as {
-          data?: {
-            stagedUploadsCreate?: {
-              stagedTargets?: Array<{
-                url: string;
-                resourceUrl: string;
-
-                parameters: Array<{
-                  name: string;
-                  value: string;
-                }>;
-              }>;
-
-              userErrors?: Array<{
-                field?: string[];
-                message: string;
-              }>;
-            };
-          };
-
-          errors?: Array<{
-            message?: string;
-          }>;
-        };
-
-
-      const graphqlErrors =
-        stagedResult.errors || [];
-
-      const userErrors =
-        stagedResult.data
-          ?.stagedUploadsCreate
-          ?.userErrors || [];
-
-
-      if (
-        graphqlErrors.length ||
-        userErrors.length
-      ) {
-        const message =
-          userErrors[0]?.message ||
-          graphqlErrors[0]?.message ||
-          "Shopify could not prepare the image upload.";
-
-        console.error(
-          "stagedUploadsCreate failed:",
-          stagedResult,
-        );
-
-        return json(
-          {
-            ok: false,
-            error: message,
-          },
-          400,
-        );
+        });
       }
 
+      case "complete-upload": {
+        const resourceUrl = stringValue(body.resourceUrl);
+        const filename = sanitizeFilename(stringValue(body.filename));
 
-      const target =
-        stagedResult.data
-          ?.stagedUploadsCreate
-          ?.stagedTargets?.[0];
+        if (!resourceUrl.startsWith("https://")) {
+          return json({ ok: false, error: "The staged artwork URL is invalid." }, 400);
+        }
 
-
-      if (
-        !target?.url ||
-        !target.resourceUrl
-      ) {
-        console.error(
-          "No staged upload target:",
-          stagedResult,
-        );
-
-        return json(
-          {
-            ok: false,
-            error:
-              "Shopify did not return an upload destination.",
-          },
-          500,
-        );
-      }
-
-
-      return json({
-        ok: true,
-
-        upload: {
-          url: target.url,
-
-          resourceUrl:
-            target.resourceUrl,
-
-          parameters:
-            target.parameters || [],
-
-          filename:
-            finalFilename,
-
-          mimeType,
-        },
-      });
-    }
-
-
-    /*
-     * ==========================================
-     * STEP 2
-     * CUSTOMER'S BROWSER UPLOADS DIRECTLY
-     * TO THE STAGED SHOPIFY URL.
-     *
-     * Nothing happens on our server here.
-     * ==========================================
-     */
-
-
-    /*
-     * ==========================================
-     * STEP 3
-     * CREATE A PERMANENT SHOPIFY FILE
-     * ==========================================
-     */
-
-    if (body.action === "complete-upload") {
-      const resourceUrl =
-        typeof body.resourceUrl === "string"
-          ? body.resourceUrl.trim()
-          : "";
-
-      const suppliedFilename =
-        typeof body.filename === "string"
-          ? body.filename.trim()
-          : "";
-
-
-      if (
-        !resourceUrl ||
-        !resourceUrl.startsWith(
-          "https://",
-        )
-      ) {
-        return json(
-          {
-            ok: false,
-            error:
-              "The staged image URL is invalid.",
-          },
-          400,
-        );
-      }
-
-
-      const createResponse =
-        await admin.graphql(
+        const data = await graphql<FileCreateData>(
+          admin,
           `#graphql
-            mutation PersonalizationFileCreate(
-              $files: [FileCreateInput!]!
-            ) {
+            mutation PersonalizationFileCreate($files: [FileCreateInput!]!) {
               fileCreate(files: $files) {
                 files {
                   id
                   fileStatus
-
                   ... on MediaImage {
                     image {
                       url
                     }
                   }
                 }
-
                 userErrors {
                   field
                   message
@@ -483,204 +335,74 @@ export async function action({
             }
           `,
           {
-            variables: {
-              files: [
-                {
-                  originalSource:
-                    resourceUrl,
+            files: [
+              {
+                alt: "Customer personalization artwork",
+                contentType: "IMAGE",
+                duplicateResolutionMode: "APPEND_UUID",
+                filename,
+                originalSource: resourceUrl,
+              },
+            ],
+          },
+        );
 
-                  contentType:
-                    "IMAGE",
+        const result = data.fileCreate;
 
-                  alt:
-                    "Customer personalization artwork",
-
-                  ...(suppliedFilename
-                    ? {
-                        filename:
-                          suppliedFilename,
-                      }
-                    : {}),
-                },
-              ],
+        if (result?.userErrors?.length) {
+          return json(
+            {
+              ok: false,
+              error: firstUserError(
+                result.userErrors,
+                "Shopify could not save the artwork.",
+              ),
             },
+            400,
+          );
+        }
+
+        const file = result?.files?.[0];
+
+        if (!file?.id) {
+          throw new Error("Shopify returned no file after fileCreate.");
+        }
+
+        return json({
+          ok: true,
+          file: {
+            id: file.id,
+            status: file.fileStatus || "PROCESSING",
+            url: file.image?.url || null,
           },
-        );
-
-
-      const createResult =
-        (await createResponse.json()) as {
-          data?: {
-            fileCreate?: {
-              files?: Array<{
-                id?: string;
-                fileStatus?: string;
-
-                image?: {
-                  url?: string | null;
-                } | null;
-              }>;
-
-              userErrors?: Array<{
-                field?: string[];
-                message: string;
-              }>;
-            };
-          };
-
-          errors?: Array<{
-            message?: string;
-          }>;
-        };
-
-
-      const graphqlErrors =
-        createResult.errors || [];
-
-      const userErrors =
-        createResult.data
-          ?.fileCreate
-          ?.userErrors || [];
-
-
-      if (
-        graphqlErrors.length ||
-        userErrors.length
-      ) {
-        const message =
-          userErrors[0]?.message ||
-          graphqlErrors[0]?.message ||
-          "Shopify could not create the permanent image.";
-
-        console.error(
-          "fileCreate failed:",
-          createResult,
-        );
-
-        return json(
-          {
-            ok: false,
-            error: message,
-          },
-          400,
-        );
+        });
       }
 
+      case "status": {
+        const fileId = stringValue(body.fileId);
 
-      const createdFile =
-        createResult.data
-          ?.fileCreate
-          ?.files?.[0];
+        if (!fileId.startsWith(MEDIA_IMAGE_GID_PREFIX)) {
+          return json({ ok: false, error: "The Shopify file ID is invalid." }, 400);
+        }
 
-
-      if (!createdFile?.id) {
-        console.error(
-          "fileCreate returned no file:",
-          createResult,
-        );
-
-        return json(
-          {
-            ok: false,
-            error:
-              "Shopify created no file record.",
-          },
-          500,
-        );
+        return json({
+          ok: true,
+          file: await getFileStatus(admin, fileId),
+        });
       }
 
-
-      return json({
-        ok: true,
-
-        file: {
-          id:
-            createdFile.id,
-
-          status:
-            createdFile.fileStatus ||
-            "PROCESSING",
-
-          url:
-            createdFile.image?.url ||
-            null,
-        },
-      });
+      default:
+        return json({ ok: false, error: "Unknown personalization action." }, 400);
     }
-
-
-    /*
-     * ==========================================
-     * STEP 4
-     * CHECK WHETHER SHOPIFY FINISHED PROCESSING
-     * ==========================================
-     */
-
-    if (body.action === "status") {
-      const fileId =
-        typeof body.fileId === "string"
-          ? body.fileId.trim()
-          : "";
-
-
-      if (
-        !fileId.startsWith(
-          "gid://shopify/",
-        )
-      ) {
-        return json(
-          {
-            ok: false,
-            error:
-              "The Shopify file ID is invalid.",
-          },
-          400,
-        );
-      }
-
-
-      const file =
-        await getFileStatus(
-          admin,
-          fileId,
-        );
-
-
-      return json({
-        ok: true,
-        file,
-      });
-    }
-
-
-    /*
-     * UNKNOWN ACTION
-     */
-
-    return json(
-      {
-        ok: false,
-        error:
-          "Unknown personalization action.",
-      },
-      400,
-    );
   } catch (error) {
-    console.error(
-      "Personalization proxy failed:",
-      error,
-    );
+    console.error("Personalization proxy failed:", error);
 
     return json(
       {
         ok: false,
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "The personalization request failed.",
+        error: "The personalization service is temporarily unavailable.",
       },
-      500,
+      502,
     );
   }
 }
