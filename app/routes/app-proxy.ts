@@ -61,6 +61,22 @@ type FileStatusData = {
   } | null;
 };
 
+type FailureCode =
+  | "INVALID_PROXY_REQUEST"
+  | "STORE_SESSION_UNAVAILABLE"
+  | "INVALID_CONTENT_TYPE"
+  | "INVALID_BODY"
+  | "INVALID_FILENAME"
+  | "INVALID_FILE_TYPE"
+  | "INVALID_FILE_SIZE"
+  | "FILE_TOO_LARGE"
+  | "PREPARE_UPLOAD_FAILED"
+  | "INVALID_STAGED_URL"
+  | "SAVE_FILE_FAILED"
+  | "INVALID_FILE_ID"
+  | "FILE_STATUS_FAILED"
+  | "UNKNOWN_ACTION";
+
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -70,6 +86,15 @@ function json(payload: unknown, status = 200) {
       "X-Content-Type-Options": "nosniff",
     },
   });
+}
+
+/**
+ * Shopify app proxies can replace 5xx response bodies with storefront HTML.
+ * The storefront client therefore uses a JSON-level `ok` flag and keeps
+ * expected operational failures on HTTP 200 so the real message survives.
+ */
+function fail(error: string, code: FailureCode) {
+  return json({ ok: false, error, code });
 }
 
 function stringValue(value: unknown) {
@@ -93,6 +118,32 @@ function firstUserError(
   return errors?.[0]?.message || fallback;
 }
 
+function publicFailureMessage(stage: string, error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+
+  if (/access denied|permission|scope/i.test(message)) {
+    return "The personalization app needs its Shopify permissions refreshed.";
+  }
+
+  if (/session|offline token|not connected/i.test(message)) {
+    return "The personalization app needs to be reopened in Shopify Admin.";
+  }
+
+  if (stage === "prepare-upload") {
+    return "Shopify could not prepare the artwork upload.";
+  }
+
+  if (stage === "complete-upload") {
+    return "Shopify could not save the artwork.";
+  }
+
+  if (stage === "status") {
+    return "Shopify could not finish processing the artwork.";
+  }
+
+  return "The personalization service is temporarily unavailable.";
+}
+
 async function graphql<TData>(
   admin: AdminClient,
   query: string,
@@ -103,7 +154,9 @@ async function graphql<TData>(
 
   if (payload.errors?.length) {
     throw new Error(
-      payload.errors.map((error) => error.message || "GraphQL error").join("; "),
+      payload.errors
+        .map((error) => error.message || "GraphQL error")
+        .join("; "),
     );
   }
 
@@ -152,19 +205,15 @@ async function getFileStatus(admin: AdminClient, fileId: string) {
 
 /**
  * Health endpoint for the configured app-proxy destination.
- * It intentionally exposes no store or authentication data.
  */
 export async function loader() {
-  return json({
-    ok: true,
-    service: "personalize-preview",
-  });
+  return json({ ok: true, service: "personalize-preview" });
 }
 
 /**
  * Storefront app-proxy endpoint.
- * The image bytes never pass through this route. The browser uploads directly
- * to Shopify's staged-upload destination and this endpoint only exchanges JSON.
+ * Image bytes never pass through this route. The browser uploads directly to
+ * Shopify's staged target; this route only exchanges signed JSON metadata.
  */
 export async function action({ request }: { request: Request }) {
   let admin: AdminClient | undefined;
@@ -174,23 +223,20 @@ export async function action({ request }: { request: Request }) {
     admin = context.admin as AdminClient | undefined;
   } catch (error) {
     console.error("Rejected app-proxy request:", error);
-    return json({ ok: false, error: "Invalid personalization request." }, 401);
+    return fail("Invalid personalization request.", "INVALID_PROXY_REQUEST");
   }
 
   if (!admin) {
-    return json(
-      {
-        ok: false,
-        error: "The personalization service is not connected to this store.",
-      },
-      401,
+    return fail(
+      "The personalization app needs to be reopened in Shopify Admin.",
+      "STORE_SESSION_UNAVAILABLE",
     );
   }
 
   const contentType = request.headers.get("content-type") || "";
 
   if (!contentType.toLowerCase().includes("application/json")) {
-    return json({ ok: false, error: "Expected a JSON request." }, 415);
+    return fail("Expected a JSON request.", "INVALID_CONTENT_TYPE");
   }
 
   let body: ProxyRequest;
@@ -198,12 +244,16 @@ export async function action({ request }: { request: Request }) {
   try {
     body = (await request.json()) as ProxyRequest;
   } catch {
-    return json({ ok: false, error: "The request body is invalid." }, 400);
+    return fail("The request body is invalid.", "INVALID_BODY");
   }
+
+  let stage = "unknown";
 
   try {
     switch (body.action) {
       case "prepare-upload": {
+        stage = "prepare-upload";
+
         const filename = stringValue(body.filename);
         const mimeType = stringValue(body.mimeType);
         const fileSize =
@@ -212,34 +262,30 @@ export async function action({ request }: { request: Request }) {
             : 0;
 
         if (!filename) {
-          return json({ ok: false, error: "The image filename is missing." }, 400);
+          return fail("The image filename is missing.", "INVALID_FILENAME");
         }
 
         if (!ALLOWED_IMAGE_TYPES.has(mimeType)) {
-          return json(
-            {
-              ok: false,
-              error: "Please upload a PNG, JPG, JPEG, or WebP image.",
-            },
-            400,
+          return fail(
+            "Please upload a PNG, JPG, JPEG, or WebP image.",
+            "INVALID_FILE_TYPE",
           );
         }
 
         if (fileSize <= 0) {
-          return json({ ok: false, error: "The uploaded image is empty." }, 400);
+          return fail("The uploaded image is empty.", "INVALID_FILE_SIZE");
         }
 
         if (fileSize > MAX_FILE_SIZE_BYTES) {
-          return json(
-            {
-              ok: false,
-              error: "The image is too large. Please use a file under 15 MB.",
-            },
-            400,
+          return fail(
+            "The image is too large. Please use a file under 15 MB.",
+            "FILE_TOO_LARGE",
           );
         }
 
-        const safeFilename = `personalization-${Date.now()}-${sanitizeFilename(filename)}`;
+        const safeFilename = `personalization-${Date.now()}-${sanitizeFilename(
+          filename,
+        )}`;
 
         const data = await graphql<StagedUploadData>(
           admin,
@@ -266,6 +312,7 @@ export async function action({ request }: { request: Request }) {
               {
                 filename: safeFilename,
                 mimeType,
+                fileSize: String(fileSize),
                 httpMethod: "POST",
                 resource: "IMAGE",
               },
@@ -276,15 +323,12 @@ export async function action({ request }: { request: Request }) {
         const result = data.stagedUploadsCreate;
 
         if (result?.userErrors?.length) {
-          return json(
-            {
-              ok: false,
-              error: firstUserError(
-                result.userErrors,
-                "Shopify could not prepare the artwork upload.",
-              ),
-            },
-            400,
+          return fail(
+            firstUserError(
+              result.userErrors,
+              "Shopify could not prepare the artwork upload.",
+            ),
+            "PREPARE_UPLOAD_FAILED",
           );
         }
 
@@ -306,11 +350,13 @@ export async function action({ request }: { request: Request }) {
       }
 
       case "complete-upload": {
+        stage = "complete-upload";
+
         const resourceUrl = stringValue(body.resourceUrl);
         const filename = sanitizeFilename(stringValue(body.filename));
 
         if (!resourceUrl.startsWith("https://")) {
-          return json({ ok: false, error: "The staged artwork URL is invalid." }, 400);
+          return fail("The staged artwork URL is invalid.", "INVALID_STAGED_URL");
         }
 
         const data = await graphql<FileCreateData>(
@@ -350,15 +396,9 @@ export async function action({ request }: { request: Request }) {
         const result = data.fileCreate;
 
         if (result?.userErrors?.length) {
-          return json(
-            {
-              ok: false,
-              error: firstUserError(
-                result.userErrors,
-                "Shopify could not save the artwork.",
-              ),
-            },
-            400,
+          return fail(
+            firstUserError(result.userErrors, "Shopify could not save the artwork."),
+            "SAVE_FILE_FAILED",
           );
         }
 
@@ -379,10 +419,12 @@ export async function action({ request }: { request: Request }) {
       }
 
       case "status": {
+        stage = "status";
+
         const fileId = stringValue(body.fileId);
 
         if (!fileId.startsWith(MEDIA_IMAGE_GID_PREFIX)) {
-          return json({ ok: false, error: "The Shopify file ID is invalid." }, 400);
+          return fail("The Shopify file ID is invalid.", "INVALID_FILE_ID");
         }
 
         return json({
@@ -392,17 +434,20 @@ export async function action({ request }: { request: Request }) {
       }
 
       default:
-        return json({ ok: false, error: "Unknown personalization action." }, 400);
+        return fail("Unknown personalization action.", "UNKNOWN_ACTION");
     }
   } catch (error) {
-    console.error("Personalization proxy failed:", error);
+    console.error(`Personalization proxy failed during ${stage}:`, error);
 
-    return json(
-      {
-        ok: false,
-        error: "The personalization service is temporarily unavailable.",
-      },
-      502,
-    );
+    const code: FailureCode =
+      stage === "prepare-upload"
+        ? "PREPARE_UPLOAD_FAILED"
+        : stage === "complete-upload"
+          ? "SAVE_FILE_FAILED"
+          : stage === "status"
+            ? "FILE_STATUS_FAILED"
+            : "UNKNOWN_ACTION";
+
+    return fail(publicFailureMessage(stage, error), code);
   }
 }
