@@ -1,7 +1,7 @@
 import type { Session } from "@shopify/shopify-api";
 import type { SessionStorage } from "@shopify/shopify-app-session-storage";
 
-type JsonProperty = [string, string | number | boolean | null];
+type JsonProperty = [string, string | number | boolean];
 
 type KvNamespace = {
   put(key: string, value: string): Promise<void>;
