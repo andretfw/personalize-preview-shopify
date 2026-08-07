@@ -4,6 +4,11 @@
   "main": "workers/app.mjs",
   "compatibility_date": "2026-08-07",
   "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
+  "vars": {
+    "SHOPIFY_API_KEY": "913c5aca61e254c4ffbb9c0b8dea2a65",
+    "SCOPES": "read_files,write_app_proxy,write_files,write_metaobject_definitions,write_metaobjects,write_products"
+  },
   "assets": {
     "directory": "build/client"
   },
