@@ -3,7 +3,7 @@
 
 client_id = "913c5aca61e254c4ffbb9c0b8dea2a65"
 name = "personalize-preview"
-application_url = "https://example.com"
+application_url = "https://personalize-preview-shopify.tfwandre.workers.dev"
 embedded = true
 
 [build]
@@ -14,7 +14,7 @@ include_config_on_deploy = true
 scopes = "read_files,write_app_proxy,write_files,write_metaobject_definitions,write_metaobjects,write_products"
 
 [auth]
-redirect_urls = ["https://example.com/api/auth"]
+redirect_urls = ["https://personalize-preview-shopify.tfwandre.workers.dev/auth/callback"]
 
 [webhooks]
 api_version = "2026-07"
