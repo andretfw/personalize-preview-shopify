@@ -1,347 +1,752 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import type {
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher } from "react-router";
+import {
+  useFetcher,
+  useLoaderData,
+  useRevalidator,
+} from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { authenticate } from "../shopify.server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+type MetafieldValue = {
+  value: string;
+} | null;
 
-  return null;
+type ProductNode = {
+  id: string;
+  title: string;
+  handle: string;
+  status: string;
+  media: {
+    nodes: Array<{
+      preview: {
+        image: {
+          url: string;
+          altText: string | null;
+        } | null;
+      } | null;
+    }>;
+  };
+  personalizeEnabled: MetafieldValue;
+  printLeft: MetafieldValue;
+  printTop: MetafieldValue;
+  printWidth: MetafieldValue;
+  printHeight: MetafieldValue;
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
+type ProductSetup = {
+  id: string;
+  title: string;
+  handle: string;
+  status: string;
+  imageUrl: string | null;
+  imageAlt: string;
+  enabled: boolean;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+type SetupValues = Pick<
+  ProductSetup,
+  "enabled" | "left" | "top" | "width" | "height"
+>;
+
+type Interaction = {
+  mode: "move" | "resize";
+  startX: number;
+  startY: number;
+  rect: DOMRect;
+  initial: SetupValues;
+};
+
+const clamp = (value: number, minimum: number, maximum: number) =>
+  Math.min(Math.max(value, minimum), maximum);
+
+const numberFromMetafield = (
+  metafield: MetafieldValue,
+  fallback: number,
+) => {
+  const parsed = Number(metafield?.value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const parseSubmittedNumber = (
+  value: FormDataEntryValue | null,
+  fallback: number,
+) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
+
   const response = await admin.graphql(
     `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
+      query PersonalizePreviewProducts {
+        products(first: 50, sortKey: TITLE) {
+          nodes {
             id
             title
             handle
             status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
+            media(first: 1, query: "media_type:IMAGE", sortKey: POSITION) {
+              nodes {
+                preview {
+                  image {
+                    url
+                    altText
+                  }
                 }
               }
             }
-            demoInfo: metafield(namespace: "$app", key: "demo_info") {
-              jsonValue
+            personalizeEnabled: metafield(namespace: "custom", key: "personalize_enabled") {
+              value
+            }
+            printLeft: metafield(namespace: "custom", key: "personalize_print_left") {
+              value
+            }
+            printTop: metafield(namespace: "custom", key: "personalize_print_top") {
+              value
+            }
+            printWidth: metafield(namespace: "custom", key: "personalize_print_width") {
+              value
+            }
+            printHeight: metafield(namespace: "custom", key: "personalize_print_height") {
+              value
             }
           }
         }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-          metafields: [
-            {
-              namespace: "$app",
-              key: "demo_info",
-              value: "Created by React Router Template",
-            },
-          ],
-        },
-      },
+      }
+    `,
+  );
+
+  const json = (await response.json()) as {
+    data?: {
+      products?: {
+        nodes?: ProductNode[];
+      };
+    };
+  };
+
+  const products: ProductSetup[] = (json.data?.products?.nodes ?? []).map(
+    (product) => {
+      const image = product.media.nodes[0]?.preview?.image ?? null;
+
+      return {
+        id: product.id,
+        title: product.title,
+        handle: product.handle,
+        status: product.status,
+        imageUrl: image?.url ?? null,
+        imageAlt: image?.altText || product.title,
+        enabled: product.personalizeEnabled?.value === "true",
+        left: numberFromMetafield(product.printLeft, 35),
+        top: numberFromMetafield(product.printTop, 22),
+        width: numberFromMetafield(product.printWidth, 30),
+        height: numberFromMetafield(product.printHeight, 45),
+      };
     },
   );
-  const responseJson = await response.json();
 
-  const product = responseJson.data!.productCreate!.product!;
-  const variantId = product.variants.edges[0]!.node!.id!;
+  return { products };
+};
 
-  const variantResponse = await admin.graphql(
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { admin } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const productId = String(formData.get("productId") || "");
+
+  if (!productId.startsWith("gid://shopify/Product/")) {
+    return { ok: false, errors: ["Choose a valid Shopify product."] };
+  }
+
+  const enabled = formData.get("enabled") === "true";
+  const left = Math.round(
+    clamp(parseSubmittedNumber(formData.get("left"), 35), 0, 95),
+  );
+  const top = Math.round(
+    clamp(parseSubmittedNumber(formData.get("top"), 22), 0, 95),
+  );
+  const width = Math.round(
+    clamp(parseSubmittedNumber(formData.get("width"), 30), 5, 100 - left),
+  );
+  const height = Math.round(
+    clamp(parseSubmittedNumber(formData.get("height"), 45), 5, 100 - top),
+  );
+
+  const definitionResponse = await admin.graphql(
     `#graphql
-    mutation shopifyReactRouterTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
+      query PersonalizePreviewDefinitions {
+        enabledDef: metafieldDefinition(identifier: {
+          ownerType: PRODUCT,
+          namespace: "custom",
+          key: "personalize_enabled"
+        }) {
+          type { name }
+        }
+        leftDef: metafieldDefinition(identifier: {
+          ownerType: PRODUCT,
+          namespace: "custom",
+          key: "personalize_print_left"
+        }) {
+          type { name }
+        }
+        topDef: metafieldDefinition(identifier: {
+          ownerType: PRODUCT,
+          namespace: "custom",
+          key: "personalize_print_top"
+        }) {
+          type { name }
+        }
+        widthDef: metafieldDefinition(identifier: {
+          ownerType: PRODUCT,
+          namespace: "custom",
+          key: "personalize_print_width"
+        }) {
+          type { name }
+        }
+        heightDef: metafieldDefinition(identifier: {
+          ownerType: PRODUCT,
+          namespace: "custom",
+          key: "personalize_print_height"
+        }) {
+          type { name }
         }
       }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
+    `,
   );
 
-  const variantResponseJson = await variantResponse.json();
+  const definitionJson = (await definitionResponse.json()) as {
+    data?: Record<string, { type?: { name?: string } } | null>;
+  };
+  const definitions = definitionJson.data ?? {};
 
-  const metaobjectResponse = await admin.graphql(
+  const metafields = [
+    {
+      ownerId: productId,
+      namespace: "custom",
+      key: "personalize_enabled",
+      type: definitions.enabledDef?.type?.name || "boolean",
+      value: enabled ? "true" : "false",
+    },
+    {
+      ownerId: productId,
+      namespace: "custom",
+      key: "personalize_print_left",
+      type: definitions.leftDef?.type?.name || "number_integer",
+      value: String(left),
+    },
+    {
+      ownerId: productId,
+      namespace: "custom",
+      key: "personalize_print_top",
+      type: definitions.topDef?.type?.name || "number_integer",
+      value: String(top),
+    },
+    {
+      ownerId: productId,
+      namespace: "custom",
+      key: "personalize_print_width",
+      type: definitions.widthDef?.type?.name || "number_integer",
+      value: String(width),
+    },
+    {
+      ownerId: productId,
+      namespace: "custom",
+      key: "personalize_print_height",
+      type: definitions.heightDef?.type?.name || "number_integer",
+      value: String(height),
+    },
+  ];
+
+  const response = await admin.graphql(
     `#graphql
-    mutation shopifyReactRouterTemplateUpsertMetaobject($handle: MetaobjectHandleInput!, $values: JSON!) {
-      metaobjectUpsert(handle: $handle, values: $values) {
-        metaobject {
-          id
-          handle
-          values
-        }
-        userErrors {
-          field
-          message
+      mutation SavePersonalizePreviewSettings($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            key
+            value
+          }
+          userErrors {
+            field
+            message
+            code
+          }
         }
       }
-    }`,
-    {
-      variables: {
-        handle: {
-          type: "$app:example",
-          handle: "demo-entry",
-        },
-        values: {
-          title: "Demo Entry",
-          description:
-            "This metaobject was created by the Shopify app template to demonstrate the metaobject API.",
-        },
-      },
-    },
+    `,
+    { variables: { metafields } },
   );
 
-  const metaobjectResponseJson = await metaobjectResponse.json();
+  const json = (await response.json()) as {
+    data?: {
+      metafieldsSet?: {
+        userErrors?: Array<{ message: string }>;
+      };
+    };
+  };
+
+  const errors = json.data?.metafieldsSet?.userErrors ?? [];
+
+  if (errors.length > 0) {
+    return {
+      ok: false,
+      errors: errors.map((error) => error.message),
+    };
+  }
 
   return {
-    product: responseJson!.data!.productCreate!.product,
-    variant:
-      variantResponseJson!.data!.productVariantsBulkUpdate!.productVariants,
-    metaobject: metaobjectResponseJson!.data!.metaobjectUpsert!.metaobject,
+    ok: true,
+    productId,
+    values: { enabled, left, top, width, height },
   };
 };
 
 export default function Index() {
+  const { products } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-
+  const revalidator = useRevalidator();
   const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
+  const [selectedId, setSelectedId] = useState(products[0]?.id ?? "");
+  const selectedProduct =
+    products.find((product) => product.id === selectedId) ?? products[0] ?? null;
+  const [values, setValues] = useState<SetupValues>({
+    enabled: selectedProduct?.enabled ?? false,
+    left: selectedProduct?.left ?? 35,
+    top: selectedProduct?.top ?? 22,
+    width: selectedProduct?.width ?? 30,
+    height: selectedProduct?.height ?? 45,
+  });
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const interactionRef = useRef<Interaction | null>(null);
+  const isSaving = fetcher.state !== "idle";
 
   useEffect(() => {
-    if (fetcher.data?.product?.id) {
-      shopify.toast.show("Product created");
-    }
-  }, [fetcher.data?.product?.id, shopify]);
+    if (!selectedProduct) return;
 
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
+    setValues({
+      enabled: selectedProduct.enabled,
+      left: selectedProduct.left,
+      top: selectedProduct.top,
+      width: selectedProduct.width,
+      height: selectedProduct.height,
+    });
+  }, [selectedProduct]);
+
+  useEffect(() => {
+    if (!fetcher.data?.ok) return;
+
+    shopify.toast.show("Personalization settings saved");
+    revalidator.revalidate();
+  }, [fetcher.data, revalidator, shopify]);
+
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      const interaction = interactionRef.current;
+      if (!interaction) return;
+
+      const deltaX =
+        ((event.clientX - interaction.startX) / interaction.rect.width) * 100;
+      const deltaY =
+        ((event.clientY - interaction.startY) / interaction.rect.height) * 100;
+
+      if (interaction.mode === "move") {
+        setValues((current) => ({
+          ...current,
+          left: clamp(
+            interaction.initial.left + deltaX,
+            0,
+            100 - interaction.initial.width,
+          ),
+          top: clamp(
+            interaction.initial.top + deltaY,
+            0,
+            100 - interaction.initial.height,
+          ),
+        }));
+        return;
+      }
+
+      setValues((current) => ({
+        ...current,
+        width: clamp(
+          interaction.initial.width + deltaX,
+          5,
+          100 - interaction.initial.left,
+        ),
+        height: clamp(
+          interaction.initial.height + deltaY,
+          5,
+          100 - interaction.initial.top,
+        ),
+      }));
+    };
+
+    const onPointerUp = () => {
+      interactionRef.current = null;
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, []);
+
+  const beginInteraction = (
+    event: ReactPointerEvent,
+    mode: Interaction["mode"],
+  ) => {
+    if (!values.enabled || !stageRef.current) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    interactionRef.current = {
+      mode,
+      startX: event.clientX,
+      startY: event.clientY,
+      rect: stageRef.current.getBoundingClientRect(),
+      initial: { ...values },
+    };
+  };
+
+  const updateNumber = (
+    key: "left" | "top" | "width" | "height",
+    rawValue: string,
+  ) => {
+    const next = Number(rawValue);
+    if (!Number.isFinite(next)) return;
+
+    setValues((current) => {
+      const updated = { ...current, [key]: next };
+      updated.left = clamp(updated.left, 0, 95);
+      updated.top = clamp(updated.top, 0, 95);
+      updated.width = clamp(updated.width, 5, 100 - updated.left);
+      updated.height = clamp(updated.height, 5, 100 - updated.top);
+      return updated;
+    });
+  };
+
+  const saveSettings = () => {
+    if (!selectedProduct) return;
+
+    const formData = new FormData();
+    formData.set("productId", selectedProduct.id);
+    formData.set("enabled", String(values.enabled));
+    formData.set("left", String(values.left));
+    formData.set("top", String(values.top));
+    formData.set("width", String(values.width));
+    formData.set("height", String(values.height));
+    fetcher.submit(formData, { method: "POST" });
+  };
+
+  if (!selectedProduct) {
+    return (
+      <s-page heading="Personalize Preview">
+        <s-section heading="No products found">
+          <s-paragraph>
+            Add a product to this Shopify store, then come back here to configure
+            personalization.
+          </s-paragraph>
+        </s-section>
+      </s-page>
+    );
+  }
+
+  const numberFields = [
+    ["left", "Left %"],
+    ["top", "Top %"],
+    ["width", "Width %"],
+    ["height", "Height %"],
+  ] as const;
 
   return (
-    <s-page heading="Shopify app template">
-      <s-button slot="primary-action" onClick={generateProduct}>
-        Generate a product
+    <s-page heading="Personalize Preview">
+      <s-button
+        slot="primary-action"
+        onClick={saveSettings}
+        {...(isSaving ? { loading: true } : {})}
+      >
+        Save product setup
       </s-button>
 
-      <s-section heading="Congrats on creating a new Shopify app 🎉">
-        <s-paragraph>
-          This embedded app template uses{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/tools/app-bridge"
-            target="_blank"
+      <s-section heading="Choose a product">
+        <div style={{ display: "grid", gap: 12 }}>
+          <label style={{ fontWeight: 650 }} htmlFor="pp-product-select">
+            Product
+          </label>
+          <select
+            id="pp-product-select"
+            value={selectedProduct.id}
+            onChange={(event) => setSelectedId(event.currentTarget.value)}
+            style={{
+              width: "100%",
+              minHeight: 44,
+              padding: "0 12px",
+              border: "1px solid #8a8a8a",
+              borderRadius: 10,
+              background: "white",
+              fontSize: 15,
+            }}
           >
-            App Bridge
-          </s-link>{" "}
-          interface examples like an{" "}
-          <s-link href="/app/additional">additional page in the app nav</s-link>
-          , as well as an{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            Admin GraphQL
-          </s-link>{" "}
-          mutation demo, to provide a starting point for app development.
-        </s-paragraph>
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.title} ({product.status.toLowerCase()})
+              </option>
+            ))}
+          </select>
+        </div>
       </s-section>
-      <s-section heading="Get started with products">
-        <s-paragraph>
-          Generate a product with GraphQL and get the JSON output for that
-          product. Learn more about the{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-            target="_blank"
-          >
-            productCreate
-          </s-link>{" "}
-          mutation in our API references. Includes a product{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data/metafields"
-            target="_blank"
-          >
-            metafield
-          </s-link>{" "}
-          and{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data/metaobjects"
-            target="_blank"
-          >
-            metaobject
-          </s-link>
-          .
-        </s-paragraph>
-        <s-stack direction="inline" gap="base">
-          <s-button
-            onClick={generateProduct}
-            {...(isLoading ? { loading: true } : {})}
-          >
-            Generate a product
-          </s-button>
-          {fetcher.data?.product && (
-            <s-button
-              onClick={() => {
-                shopify.intents.invoke?.("edit:shopify/Product", {
-                  value: fetcher.data?.product?.id,
-                });
+
+      <s-section heading="Personalization setup">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(320px, 1.4fr) minmax(260px, 0.8fr)",
+            gap: 28,
+            alignItems: "start",
+          }}
+        >
+          <div>
+            <div
+              ref={stageRef}
+              style={{
+                position: "relative",
+                width: "100%",
+                maxWidth: 680,
+                margin: "0 auto",
+                background: "#f4f4f4",
+                borderRadius: 16,
+                overflow: "hidden",
+                lineHeight: 0,
+                userSelect: "none",
               }}
-              target="_blank"
-              variant="tertiary"
             >
-              Edit product
-            </s-button>
-          )}
-        </s-stack>
-        {fetcher.data?.product && (
-          <s-section heading="productCreate mutation">
-            <s-stack direction="block" gap="base">
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre
+              {selectedProduct.imageUrl ? (
+                <img
+                  src={selectedProduct.imageUrl}
+                  alt={selectedProduct.imageAlt}
+                  draggable={false}
+                  style={{ display: "block", width: "100%", height: "auto" }}
+                />
+              ) : (
+                <div
                   style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
+                    minHeight: 420,
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#666",
+                    lineHeight: 1.4,
+                    padding: 32,
+                    textAlign: "center",
                   }}
                 >
-                  <code>{JSON.stringify(fetcher.data.product, null, 2)}</code>
-                </pre>
-              </s-box>
+                  This product does not have a product image yet.
+                </div>
+              )}
 
-              <s-heading>productVariantsBulkUpdate mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre
+              {selectedProduct.imageUrl && (
+                <div
+                  onPointerDown={(event) => beginInteraction(event, "move")}
                   style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
+                    position: "absolute",
+                    left: `${values.left}%`,
+                    top: `${values.top}%`,
+                    width: `${values.width}%`,
+                    height: `${values.height}%`,
+                    boxSizing: "border-box",
+                    border: values.enabled
+                      ? "3px solid #006e52"
+                      : "3px dashed #8a8a8a",
+                    background: values.enabled
+                      ? "rgba(0, 110, 82, 0.16)"
+                      : "rgba(120, 120, 120, 0.10)",
+                    cursor: values.enabled ? "move" : "default",
+                    lineHeight: 1.2,
+                    display: "grid",
+                    placeItems: "center",
+                    color: values.enabled ? "#004c3f" : "#666",
+                    fontWeight: 750,
+                    fontSize: 13,
+                    textAlign: "center",
+                    touchAction: "none",
                   }}
                 >
-                  <code>{JSON.stringify(fetcher.data.variant, null, 2)}</code>
-                </pre>
-              </s-box>
+                  PRINT AREA
+                  {values.enabled && (
+                    <button
+                      type="button"
+                      aria-label="Resize print area"
+                      onPointerDown={(event) => beginInteraction(event, "resize")}
+                      style={{
+                        position: "absolute",
+                        right: -8,
+                        bottom: -8,
+                        width: 18,
+                        height: 18,
+                        padding: 0,
+                        border: "2px solid white",
+                        borderRadius: 5,
+                        background: "#006e52",
+                        cursor: "nwse-resize",
+                        touchAction: "none",
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
 
-              <s-heading>metaobjectUpsert mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
+            <p
+              style={{
+                margin: "12px 0 0",
+                color: "#616161",
+                fontSize: 13,
+                lineHeight: 1.45,
+              }}
+            >
+              Drag the green box to position it. Drag the square in the bottom-right
+              corner to resize it.
+            </p>
+          </div>
+
+          <div style={{ display: "grid", gap: 20 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 18,
+                padding: 16,
+                border: "1px solid #dedede",
+                borderRadius: 12,
+              }}
+            >
+              <div>
+                <label
+                  htmlFor="pp-enable-personalization"
+                  style={{ display: "block", fontWeight: 750, marginBottom: 4 }}
                 >
-                  <code>
-                    {JSON.stringify(fetcher.data.metaobject, null, 2)}
-                  </code>
-                </pre>
-              </s-box>
-            </s-stack>
-          </s-section>
-        )}
+                  Enable personalization
+                </label>
+                <span style={{ color: "#616161", fontSize: 13 }}>
+                  Show the customizer for this product.
+                </span>
+              </div>
+              <input
+                id="pp-enable-personalization"
+                type="checkbox"
+                checked={values.enabled}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    enabled: event.currentTarget.checked,
+                  }))
+                }
+                style={{ width: 22, height: 22 }}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+                opacity: values.enabled ? 1 : 0.55,
+              }}
+            >
+              {numberFields.map(([key, labelText]) => {
+                const inputId = `pp-${key}`;
+
+                return (
+                  <div key={key} style={{ display: "grid", gap: 6 }}>
+                    <label
+                      htmlFor={inputId}
+                      style={{ fontWeight: 650, fontSize: 13 }}
+                    >
+                      {labelText}
+                    </label>
+                    <input
+                      id={inputId}
+                      type="number"
+                      min={key === "width" || key === "height" ? 5 : 0}
+                      max={100}
+                      step={1}
+                      disabled={!values.enabled}
+                      value={Math.round(values[key])}
+                      onChange={(event) =>
+                        updateNumber(key, event.currentTarget.value)
+                      }
+                      style={{
+                        minHeight: 42,
+                        padding: "0 10px",
+                        border: "1px solid #8a8a8a",
+                        borderRadius: 8,
+                        fontSize: 15,
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={saveSettings}
+              disabled={isSaving}
+              style={{
+                minHeight: 46,
+                border: 0,
+                borderRadius: 12,
+                background: "#111",
+                color: "white",
+                fontSize: 15,
+                fontWeight: 750,
+                cursor: isSaving ? "wait" : "pointer",
+              }}
+            >
+              {isSaving ? "Saving…" : "Save product setup"}
+            </button>
+
+            {fetcher.data && !fetcher.data.ok && (
+              <div
+                role="alert"
+                style={{
+                  padding: 12,
+                  borderRadius: 10,
+                  background: "#fff1f0",
+                  color: "#8a1f11",
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                }}
+              >
+                {fetcher.data.errors?.join(" ") || "Could not save settings."}
+              </div>
+            )}
+          </div>
+        </div>
       </s-section>
 
-      <s-section slot="aside" heading="App template specs">
+      <s-section slot="aside" heading="How it works">
         <s-paragraph>
-          <s-text>Framework: </s-text>
-          <s-link href="https://reactrouter.com/" target="_blank">
-            React Router
-          </s-link>
+          Pick a product, enable personalization, place the printable area on the
+          product image, and save. The app writes the Shopify product settings for
+          you — no manual metafield editing.
         </s-paragraph>
-        <s-paragraph>
-          <s-text>Interface: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/app-home/using-polaris-components"
-            target="_blank"
-          >
-            Polaris web components
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>API: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            GraphQL
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Custom data: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data"
-            target="_blank"
-          >
-            Metafields &amp; metaobjects
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Database: </s-text>
-          <s-link href="https://www.prisma.io/" target="_blank">
-            Prisma
-          </s-link>
-        </s-paragraph>
-      </s-section>
-
-      <s-section slot="aside" heading="Next steps">
-        <s-unordered-list>
-          <s-list-item>
-            Build an{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/getting-started/build-app-example"
-              target="_blank"
-            >
-              example app
-            </s-link>
-          </s-list-item>
-          <s-list-item>
-            Explore Shopify&apos;s API with{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-              target="_blank"
-            >
-              GraphiQL
-            </s-link>
-          </s-list-item>
-        </s-unordered-list>
       </s-section>
     </s-page>
   );
