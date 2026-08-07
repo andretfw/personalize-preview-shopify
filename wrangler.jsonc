@@ -6,9 +6,18 @@
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
   "vars": {
+    "NODE_ENV": "production",
+    "SESSION_STORAGE": "cloudflare-kv",
+    "SHOPIFY_APP_URL": "https://personalize-preview-shopify.tfwandre.workers.dev",
     "SHOPIFY_API_KEY": "913c5aca61e254c4ffbb9c0b8dea2a65",
     "SCOPES": "read_files,write_app_proxy,write_files,write_metaobject_definitions,write_metaobjects,write_products"
   },
+  "kv_namespaces": [
+    {
+      "binding": "SHOPIFY_SESSIONS",
+      "id": "8a10f85fb2174084b4965d39e48fc2b8"
+    }
+  ],
   "assets": {
     "directory": "build/client"
   },
