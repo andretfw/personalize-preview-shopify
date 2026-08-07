@@ -1,7 +1,11 @@
-import { authenticate } from "../shopify.server";
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+import { unauthenticated } from "../shopify.server";
 
 const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 const MEDIA_IMAGE_GID_PREFIX = "gid://shopify/MediaImage/";
+const MAX_PROXY_REQUEST_AGE_SECONDS = 10 * 60;
+const SHOP_DOMAIN_PATTERN = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i;
 
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -144,6 +148,67 @@ function publicFailureMessage(stage: string, error: unknown) {
   return "The personalization service is temporarily unavailable.";
 }
 
+/**
+ * Verify Shopify's app-proxy signature before trusting the shop parameter.
+ *
+ * We intentionally perform this validation here instead of relying on the
+ * framework app-proxy helper because the helper can fail before returning a
+ * context in local development. After verification, the signed shop domain is
+ * safe to use with `unauthenticated.admin` to load its offline session.
+ */
+function verifyAppProxyRequest(request: Request) {
+  const secret = process.env.SHOPIFY_API_SECRET || "";
+
+  if (!secret) {
+    console.error("SHOPIFY_API_SECRET is missing.");
+    return null;
+  }
+
+  const url = new URL(request.url);
+  const signature = url.searchParams.get("signature") || "";
+  const rawShop = url.searchParams.get("shop") || "";
+  const timestamp = Number(url.searchParams.get("timestamp"));
+
+  if (
+    !signature ||
+    !SHOP_DOMAIN_PATTERN.test(rawShop) ||
+    !Number.isFinite(timestamp)
+  ) {
+    return null;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+
+  if (Math.abs(now - timestamp) > MAX_PROXY_REQUEST_AGE_SECONDS) {
+    return null;
+  }
+
+  const parameterNames = Array.from(new Set(url.searchParams.keys())).filter(
+    (name) => name !== "signature",
+  );
+
+  const message = parameterNames
+    .map((name) => `${name}=${url.searchParams.getAll(name).join(",")}`)
+    .sort()
+    .join("");
+
+  const expectedSignature = createHmac("sha256", secret)
+    .update(message)
+    .digest("hex");
+
+  const actualBuffer = Buffer.from(signature, "utf8");
+  const expectedBuffer = Buffer.from(expectedSignature, "utf8");
+
+  if (
+    actualBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(actualBuffer, expectedBuffer)
+  ) {
+    return null;
+  }
+
+  return { shop: rawShop.toLowerCase() };
+}
+
 async function graphql<TData>(
   admin: AdminClient,
   query: string,
@@ -216,17 +281,20 @@ export async function loader() {
  * Shopify's staged target; this route only exchanges signed JSON metadata.
  */
 export async function action({ request }: { request: Request }) {
-  let admin: AdminClient | undefined;
+  const verifiedProxy = verifyAppProxyRequest(request);
 
-  try {
-    const context = await authenticate.public.appProxy(request);
-    admin = context.admin as AdminClient | undefined;
-  } catch (error) {
-    console.error("Rejected app-proxy request:", error);
+  if (!verifiedProxy) {
+    console.error("Rejected app-proxy request: signature validation failed.");
     return fail("Invalid personalization request.", "INVALID_PROXY_REQUEST");
   }
 
-  if (!admin) {
+  let admin: AdminClient;
+
+  try {
+    const context = await unauthenticated.admin(verifiedProxy.shop);
+    admin = context.admin as AdminClient;
+  } catch (error) {
+    console.error("Unable to load the Shopify offline session:", error);
     return fail(
       "The personalization app needs to be reopened in Shopify Admin.",
       "STORE_SESSION_UNAVAILABLE",
