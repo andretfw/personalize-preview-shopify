@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "react-router build",
+    "check": "npm run typecheck && npm run lint && npm run build",
     "dev": "shopify app dev",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
@@ -68,5 +69,5 @@
   "overrides": {
     "p-map": "^4.0.0"
   },
-  "author": "andreea"
+  "author": "Fruttata"
 }
