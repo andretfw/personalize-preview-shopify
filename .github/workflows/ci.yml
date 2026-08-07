@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -27,5 +27,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify
+      - name: Verify app
         run: npm run check
+
+      - name: Verify Cloudflare bundle
+        run: npx --yes wrangler@4.120.0 deploy --dry-run
