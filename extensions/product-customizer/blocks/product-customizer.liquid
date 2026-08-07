@@ -1,0 +1,722 @@
+{% assign personalization_enabled = product.metafields.custom.personalize_enabled.value %}
+
+{% if personalization_enabled == true %}
+
+  {% assign preview_media = product.selected_or_first_available_variant.featured_media %}
+
+  {% if preview_media == blank %}
+    {% assign preview_media = product.featured_media %}
+  {% endif %}
+
+
+  {% comment %}
+    PRODUCT-SPECIFIC PRINT AREA
+
+    Product metafields override the default block values:
+
+    custom.personalize_print_left
+    custom.personalize_print_top
+    custom.personalize_print_width
+    custom.personalize_print_height
+  {% endcomment %}
+
+  {% assign product_print_left = product.metafields.custom.personalize_print_left.value %}
+  {% assign product_print_top = product.metafields.custom.personalize_print_top.value %}
+  {% assign product_print_width = product.metafields.custom.personalize_print_width.value %}
+  {% assign product_print_height = product.metafields.custom.personalize_print_height.value %}
+
+
+  {% if product_print_left == blank %}
+    {% assign product_print_left = block.settings.print_left %}
+  {% endif %}
+
+  {% if product_print_top == blank %}
+    {% assign product_print_top = block.settings.print_top %}
+  {% endif %}
+
+  {% if product_print_width == blank %}
+    {% assign product_print_width = block.settings.print_width %}
+  {% endif %}
+
+  {% if product_print_height == blank %}
+    {% assign product_print_height = block.settings.print_height %}
+  {% endif %}
+
+
+  <div
+    id="product-customizer-{{ block.id }}"
+    class="pp-customizer"
+    data-product-customizer
+    data-block-id="{{ block.id }}"
+    data-product-id="{{ product.id }}"
+    style="
+      --pp-print-left: {{ product_print_left }}%;
+      --pp-print-top: {{ product_print_top }}%;
+      --pp-print-width: {{ product_print_width }}%;
+      --pp-print-height: {{ product_print_height }}%;
+    "
+    {{ block.shopify_attributes }}
+  >
+
+    <!-- PRODUCT PAGE LAUNCHER -->
+
+    <div class="pp-launcher">
+
+      <div class="pp-launcher-copy">
+
+        <span class="pp-launcher-eyebrow">
+          Personalize it
+        </span>
+
+        <strong class="pp-launcher-title">
+          Make this product yours
+        </strong>
+
+        <span class="pp-launcher-description">
+          Upload your artwork, add text and preview it before ordering.
+        </span>
+
+      </div>
+
+
+      <button
+        class="pp-open-studio-button"
+        data-pp-open-studio
+        type="button"
+      >
+        Personalize this product
+      </button>
+
+    </div>
+
+
+    <!-- CUSTOMIZER STUDIO -->
+
+    <div
+      class="pp-studio"
+      data-pp-studio
+      hidden
+    >
+
+      <div
+        class="pp-studio-backdrop"
+        data-pp-close-studio
+      ></div>
+
+
+      <div
+        class="pp-studio-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Personalize product"
+      >
+
+
+        <!-- STUDIO HEADER -->
+
+        <div class="pp-studio-header">
+
+          <div>
+
+            <span class="pp-studio-eyebrow">
+              {{ product.title | escape }}
+            </span>
+
+            <h2 class="pp-studio-title">
+              Create your design
+            </h2>
+
+          </div>
+
+
+          <button
+            class="pp-close-studio-button"
+            data-pp-close-studio
+            type="button"
+            aria-label="Close customizer"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <!-- STUDIO BODY -->
+
+        <div class="pp-studio-body">
+
+
+          <!-- LEFT: LIVE PRODUCT PREVIEW -->
+
+          <div class="pp-studio-preview-column">
+
+            <div class="pp-preview">
+
+              <div class="pp-product-stage">
+
+                {% if preview_media != blank %}
+
+                  <img
+                    class="pp-product-image"
+                    src="{{ preview_media.preview_image | image_url: width: 1600 }}"
+                    alt="{{ preview_media.alt | default: product.title | escape }}"
+                    width="{{ preview_media.preview_image.width }}"
+                    height="{{ preview_media.preview_image.height }}"
+                  >
+
+                {% else %}
+
+                  {{ 'product-1' | placeholder_svg_tag: 'pp-product-image pp-placeholder' }}
+
+                {% endif %}
+
+
+                <!-- PRINTABLE AREA -->
+
+                <div
+                  class="pp-print-area"
+                  data-pp-print-area
+                >
+
+                  <div
+                    class="pp-empty-state"
+                    data-pp-empty-state
+                  >
+                    <span>
+                      Print area
+                    </span>
+                  </div>
+
+
+                  <!-- CUSTOMER ARTWORK -->
+
+                  <img
+                    class="pp-artwork"
+  data-pp-artwork
+  alt="Customer artwork preview"
+  draggable="false"
+  width="100"
+  height="100"
+  hidden
+                  >
+
+
+                  <!-- CUSTOMER TEXT -->
+
+                  <div
+                    class="pp-text-layer"
+                    data-pp-text-layer
+                    role="img"
+                    aria-label="Custom text preview"
+                    hidden
+                  ></div>
+
+                </div>
+
+              </div>
+
+
+              <p
+                class="pp-preview-help"
+                data-pp-preview-help
+                hidden
+              >
+                Drag your image or text directly on the preview to position it.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <!-- RIGHT: CUSTOMIZATION CONTROLS -->
+
+          <div class="pp-studio-controls-column">
+
+
+            <!-- STEP 1 -->
+
+            <div class="pp-studio-step">
+
+              <span class="pp-step-number">
+                1
+              </span>
+
+              <div>
+
+                <strong>
+                  Add your artwork
+                </strong>
+
+                <span>
+                  PNG, JPG or WebP
+                </span>
+
+              </div>
+
+            </div>
+
+
+            <div class="pp-control-section">
+
+              <label class="pp-upload-button">
+
+                <span>
+                  {{ block.settings.upload_label | escape }}
+                </span>
+
+                <input
+                  class="pp-file-input"
+                  data-pp-file
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  data-required="{{ block.settings.required_upload }}"
+                >
+
+              </label>
+
+
+              <p
+                class="pp-file-name"
+                data-pp-file-name
+              >
+                No file selected
+              </p>
+
+
+              <div
+                class="pp-edit-controls"
+                data-pp-edit-controls
+                hidden
+              >
+
+                <label
+                  class="pp-range-label"
+                  for="pp-scale-{{ block.id }}"
+                >
+                  Image size
+                </label>
+
+
+                <input
+                  id="pp-scale-{{ block.id }}"
+                  class="pp-range"
+                  data-pp-scale
+                  type="range"
+                  min="30"
+                  max="200"
+                  step="1"
+                  value="100"
+                >
+
+
+                <div class="pp-button-row">
+
+                  <button
+                    class="pp-secondary-button"
+                    data-pp-center
+                    type="button"
+                  >
+                    Center image
+                  </button>
+
+
+                  <button
+                    class="pp-secondary-button"
+                    data-pp-reset
+                    type="button"
+                  >
+                    Remove
+                  </button>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            <!-- STEP 2 -->
+
+            <div class="pp-studio-step">
+
+              <span class="pp-step-number">
+                2
+              </span>
+
+              <div>
+
+                <strong>
+                  Add text
+                </strong>
+
+                <span>
+                  Optional
+                </span>
+
+              </div>
+
+            </div>
+
+
+            <div class="pp-control-section">
+
+              <label
+                class="pp-field-label"
+                for="pp-text-{{ block.id }}"
+              >
+                Your text
+              </label>
+
+
+              <input
+                id="pp-text-{{ block.id }}"
+                class="pp-text-input"
+                data-pp-text-input
+                type="text"
+                maxlength="80"
+                placeholder="Type something..."
+                autocomplete="off"
+              >
+
+
+              <div class="pp-text-options">
+
+
+                <!-- FONT -->
+
+                <div class="pp-field-group">
+
+                  <label
+                    class="pp-field-label"
+                    for="pp-font-{{ block.id }}"
+                  >
+                    Font
+                  </label>
+
+
+                  <select
+                    id="pp-font-{{ block.id }}"
+                    class="pp-select"
+                    data-pp-font
+                  >
+
+                    <option value="Arial, sans-serif">
+                      Arial
+                    </option>
+
+                    <option value="Georgia, serif">
+                      Georgia
+                    </option>
+
+                    <option value="'Times New Roman', serif">
+                      Times New Roman
+                    </option>
+
+                    <option value="'Trebuchet MS', sans-serif">
+                      Trebuchet
+                    </option>
+
+                    <option value="'Courier New', monospace">
+                      Courier
+                    </option>
+
+                    <option value="cursive">
+                      Handwritten
+                    </option>
+
+                  </select>
+
+                </div>
+
+
+                <!-- COLOR -->
+
+                <div class="pp-field-group">
+
+                  <label
+                    class="pp-field-label"
+                    for="pp-color-{{ block.id }}"
+                  >
+                    Color
+                  </label>
+
+
+                  <input
+                    id="pp-color-{{ block.id }}"
+                    class="pp-color-input"
+                    data-pp-text-color
+                    type="color"
+                    value="#111111"
+                  >
+
+                </div>
+
+              </div>
+
+
+              <!-- TEXT EDITING -->
+
+              <div
+                class="pp-text-edit-controls"
+                data-pp-text-edit-controls
+                hidden
+              >
+
+                <label
+                  class="pp-range-label"
+                  for="pp-text-size-{{ block.id }}"
+                >
+                  Text size
+                </label>
+
+
+                <input
+                  id="pp-text-size-{{ block.id }}"
+                  class="pp-range"
+                  data-pp-text-size
+                  type="range"
+                  min="8"
+                  max="72"
+                  step="1"
+                  value="30"
+                >
+
+
+                <div class="pp-button-row">
+
+                  <button
+                    class="pp-secondary-button"
+                    data-pp-center-text
+                    type="button"
+                  >
+                    Center text
+                  </button>
+
+
+                  <button
+                    class="pp-secondary-button"
+                    data-pp-remove-text
+                    type="button"
+                  >
+                    Remove text
+                  </button>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            <!-- STEP 3 -->
+
+            <div class="pp-studio-step">
+
+              <span class="pp-step-number">
+                3
+              </span>
+
+              <div>
+
+                <strong>
+                  Confirm your design
+                </strong>
+
+                <span>
+                  We’ll save the artwork with your order.
+                </span>
+
+              </div>
+
+            </div>
+
+
+            <div class="pp-confirmation">
+
+              <button
+                class="pp-confirm-button"
+                data-pp-confirm
+                type="button"
+              >
+                Confirm design
+              </button>
+
+
+              <div
+                class="pp-confirmed-state"
+                data-pp-confirmed-state
+                aria-live="polite"
+                hidden
+              >
+
+                <p class="pp-confirmed-message">
+                  ✓ Design confirmed
+                </p>
+
+
+                <div class="pp-button-row">
+
+                  <button
+                    class="pp-secondary-button"
+                    data-pp-edit-design
+                    type="button"
+                  >
+                    Edit design
+                  </button>
+
+
+                  <button
+                    class="pp-continue-button"
+                    data-pp-continue
+                    type="button"
+                  >
+                    Add personalized product to cart
+                  </button>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            <p
+              class="pp-error"
+              data-pp-error
+              role="alert"
+              hidden
+            ></p>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- PRIVATE SHOPIFY LINE ITEM DATA -->
+
+    <input
+      type="hidden"
+      data-pp-placement
+      name="properties[_Artwork placement]"
+      value=""
+    >
+
+
+    <input
+      type="hidden"
+      data-pp-text-details
+      name="properties[_Text customization]"
+      value=""
+    >
+
+
+    <input
+      type="hidden"
+      data-pp-customized
+      name="properties[_Personalized]"
+      value="No"
+    >
+
+
+    <input
+      type="hidden"
+      data-pp-confirmed
+      name="properties[_Design confirmed]"
+      value="No"
+    >
+
+  </div>
+
+{% endif %}
+
+
+{% schema %}
+{
+  "name": "Product customizer",
+  "target": "section",
+
+  "enabled_on": {
+    "templates": ["product"]
+  },
+
+  "stylesheet": "product-customizer.css",
+  "javascript": "product-customizer.js",
+
+  "settings": [
+
+    {
+      "type": "text",
+      "id": "upload_label",
+      "label": "Upload button text",
+      "default": "Upload your artwork"
+    },
+
+    {
+      "type": "checkbox",
+      "id": "required_upload",
+      "label": "Require artwork upload",
+      "default": false
+    },
+
+    {
+      "type": "header",
+      "content": "Default printable area"
+    },
+
+    {
+      "type": "paragraph",
+      "content": "These values are used when an enabled product does not have its own print-area metafields."
+    },
+
+    {
+      "type": "range",
+      "id": "print_left",
+      "label": "Position from left",
+      "min": 0,
+      "max": 80,
+      "step": 1,
+      "unit": "%",
+      "default": 35
+    },
+
+    {
+      "type": "range",
+      "id": "print_top",
+      "label": "Position from top",
+      "min": 0,
+      "max": 80,
+      "step": 1,
+      "unit": "%",
+      "default": 22
+    },
+
+    {
+      "type": "range",
+      "id": "print_width",
+      "label": "Print area width",
+      "min": 10,
+      "max": 70,
+      "step": 1,
+      "unit": "%",
+      "default": 30
+    },
+
+    {
+      "type": "range",
+      "id": "print_height",
+      "label": "Print area height",
+      "min": 10,
+      "max": 70,
+      "step": 1,
+      "unit": "%",
+      "default": 45
+    }
+
+  ]
+}
+{% endschema %}

@@ -1,0 +1,1149 @@
+.pp-customizer {
+  --pp-dark: #111111;
+  --pp-white: #ffffff;
+  --pp-bg: #f4f4f2;
+  --pp-soft: #f8f8f7;
+  --pp-border: rgba(17, 17, 17, 0.12);
+  --pp-border-strong: rgba(17, 17, 17, 0.22);
+  --pp-muted: rgba(17, 17, 17, 0.6);
+
+  width: 100%;
+  margin: 18px 0;
+
+  color: inherit;
+  font-family: inherit;
+}
+
+.pp-customizer *,
+.pp-customizer *::before,
+.pp-customizer *::after,
+.pp-studio *,
+.pp-studio *::before,
+.pp-studio *::after {
+  box-sizing: border-box;
+}
+
+
+/* =========================
+   PRODUCT PAGE LAUNCHER
+   ========================= */
+
+.pp-launcher {
+  display: flex;
+
+  width: 100%;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  padding: 18px;
+
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 18px;
+
+  background: #ffffff;
+}
+
+.pp-launcher-copy {
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+
+  gap: 4px;
+}
+
+.pp-launcher-eyebrow {
+  color: rgba(17, 17, 17, 0.55);
+
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+
+  text-transform: uppercase;
+}
+
+.pp-launcher-title {
+  color: inherit;
+
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.pp-launcher-description {
+  max-width: 430px;
+
+  color: rgba(17, 17, 17, 0.6);
+
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pp-open-studio-button {
+  flex: 0 0 auto;
+
+  min-height: 46px;
+
+  padding: 12px 19px;
+
+  border: 1px solid #111111;
+  border-radius: 999px;
+
+  background: #111111;
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.pp-open-studio-button:hover {
+  opacity: 0.86;
+}
+
+.pp-open-studio-button:active {
+  transform: scale(0.98);
+}
+
+
+/* =========================
+   FULLSCREEN STUDIO
+   ========================= */
+
+.pp-studio {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 2147483647;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  font-family: inherit;
+  color: #111111;
+}
+
+.pp-studio[hidden] {
+  display: none !important;
+}
+
+.pp-studio-backdrop {
+  position: absolute;
+
+  inset: 0;
+
+  background: rgba(0, 0, 0, 0.58);
+
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+
+/* =========================
+   STUDIO WINDOW
+   ========================= */
+
+.pp-studio-dialog {
+  position: relative;
+
+  z-index: 1;
+
+  display: flex;
+  flex-direction: column;
+
+  width: min(1240px, 96vw);
+  height: min(850px, 94vh);
+
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+
+  border-radius: 24px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.24),
+    0 5px 18px rgba(0, 0, 0, 0.1);
+}
+
+
+/* =========================
+   STUDIO HEADER
+   ========================= */
+
+.pp-studio-header {
+  position: relative;
+
+  z-index: 20;
+
+  display: flex;
+
+  flex: 0 0 auto;
+
+  min-height: 76px;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 20px;
+
+  padding: 15px 22px;
+
+  border-bottom: 1px solid rgba(17, 17, 17, 0.12);
+
+  background: #ffffff;
+}
+
+.pp-studio-eyebrow {
+  display: block;
+
+  margin: 0 0 2px;
+
+  color: rgba(17, 17, 17, 0.55);
+
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.pp-studio-title {
+  margin: 0;
+
+  color: #111111;
+
+  font: inherit;
+  font-size: 22px;
+  font-weight: 780;
+  line-height: 1.15;
+
+  letter-spacing: -0.025em;
+}
+
+.pp-close-studio-button {
+  display: grid;
+
+  flex: 0 0 auto;
+
+  width: 42px;
+  height: 42px;
+
+  place-items: center;
+
+  padding: 0;
+
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 50%;
+
+  background: #ffffff;
+  color: #111111;
+
+  font: inherit;
+  font-size: 27px;
+  font-weight: 300;
+  line-height: 1;
+
+  cursor: pointer;
+
+  transition:
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.pp-close-studio-button:hover {
+  background: #f5f5f3;
+}
+
+.pp-close-studio-button:active {
+  transform: scale(0.96);
+}
+
+
+/* =========================
+   STUDIO BODY
+   ========================= */
+
+.pp-studio-body {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1.55fr)
+    minmax(340px, 0.75fr);
+
+  flex: 1 1 auto;
+
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+}
+
+
+/* =========================
+   LEFT PREVIEW COLUMN
+   ========================= */
+
+.pp-studio-preview-column {
+  display: flex;
+
+  min-width: 0;
+  min-height: 0;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 28px;
+
+  overflow: hidden;
+
+  background: #f4f4f2;
+}
+
+.pp-preview {
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+  min-height: 0;
+
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* =========================
+   PRODUCT PREVIEW
+   ========================= */
+
+.pp-product-stage {
+  position: relative;
+
+  display: inline-block;
+
+  width: fit-content;
+  max-width: 100%;
+
+  flex: 0 1 auto;
+
+  overflow: hidden;
+
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.03),
+    0 18px 48px rgba(0, 0, 0, 0.05);
+}
+
+.pp-product-image {
+  display: block;
+
+  width: auto;
+  height: auto;
+
+  max-width: 100%;
+  max-height: calc(94vh - 175px);
+
+  margin: 0;
+
+  object-fit: contain;
+
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.pp-placeholder {
+  width: min(680px, 100%);
+  min-height: 460px;
+}
+
+
+/* =========================
+   PRINT AREA
+   ========================= */
+
+.pp-print-area {
+  position: absolute;
+
+  left: var(--pp-print-left);
+  top: var(--pp-print-top);
+
+  width: var(--pp-print-width);
+  height: var(--pp-print-height);
+
+  overflow: hidden;
+
+  border: 1.5px dashed rgba(17, 17, 17, 0.34);
+  border-radius: 6px;
+
+  background: rgba(255, 255, 255, 0.06);
+
+  touch-action: none;
+}
+
+.pp-print-area.pp-has-artwork,
+.pp-print-area.pp-has-text {
+  border-color: rgba(17, 17, 17, 0.2);
+}
+
+.pp-empty-state {
+  position: absolute;
+
+  inset: 0;
+
+  display: grid;
+
+  place-items: center;
+
+  padding: 8px;
+
+  color: rgba(17, 17, 17, 0.42);
+
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  line-height: 1.3;
+
+  text-align: center;
+  text-transform: uppercase;
+
+  pointer-events: none;
+}
+
+
+/* =========================
+   ARTWORK LAYER
+   ========================= */
+
+.pp-artwork {
+  position: absolute;
+
+  left: var(--pp-artwork-x, 50%);
+  top: var(--pp-artwork-y, 50%);
+
+  display: block;
+
+  width: var(--pp-artwork-width, 70%);
+  max-width: none;
+
+  height: auto;
+
+  margin: 0;
+
+  transform:
+    translate(-50%, -50%)
+    scale(var(--pp-artwork-scale, 1));
+
+  transform-origin: center;
+
+  cursor: grab;
+
+  user-select: none;
+  -webkit-user-drag: none;
+
+  touch-action: none;
+
+  z-index: 1;
+}
+
+.pp-artwork:active {
+  cursor: grabbing;
+}
+
+
+/* =========================
+   TEXT LAYER
+   ========================= */
+
+.pp-text-layer {
+  position: absolute;
+
+  left: var(--pp-text-x, 50%);
+  top: var(--pp-text-y, 75%);
+
+  display: inline-block;
+
+  width: max-content;
+  min-width: 0;
+  max-width: none;
+
+  padding: 3px 6px;
+
+  white-space: nowrap;
+
+  word-break: normal;
+  overflow-wrap: normal;
+
+  line-height: 1.15;
+
+  text-align: center;
+
+  transform: translate(-50%, -50%);
+
+  transform-origin: center;
+
+  cursor: grab;
+
+  user-select: none;
+  touch-action: none;
+
+  z-index: 2;
+}
+
+.pp-text-layer:active {
+  cursor: grabbing;
+}
+
+.pp-preview-help {
+  flex: 0 0 auto;
+
+  margin: 10px 0 0;
+
+  color: rgba(17, 17, 17, 0.58);
+
+  font-size: 12px;
+  line-height: 1.4;
+
+  text-align: center;
+}
+
+
+/* =========================
+   RIGHT CONTROLS COLUMN
+   ========================= */
+
+.pp-studio-controls-column {
+  min-width: 0;
+  min-height: 0;
+
+  padding: 22px;
+
+  overflow-y: auto;
+
+  border-left: 1px solid rgba(17, 17, 17, 0.12);
+
+  background: #ffffff;
+
+  overscroll-behavior: contain;
+}
+
+
+/* =========================
+   STEP HEADINGS
+   ========================= */
+
+.pp-studio-step {
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+
+  margin: 3px 0 10px;
+}
+
+.pp-studio-step:not(:first-child) {
+  margin-top: 24px;
+}
+
+.pp-step-number {
+  display: grid;
+
+  flex: 0 0 auto;
+
+  width: 29px;
+  height: 29px;
+
+  place-items: center;
+
+  border-radius: 50%;
+
+  background: #111111;
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.pp-studio-step > div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 1px;
+
+  min-width: 0;
+}
+
+.pp-studio-step strong {
+  color: #111111;
+
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.pp-studio-step div > span {
+  color: rgba(17, 17, 17, 0.56);
+
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+
+/* =========================
+   CONTROL CARDS
+   ========================= */
+
+.pp-control-section {
+  padding: 17px;
+
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 15px;
+
+  background: #f8f8f7;
+}
+
+
+/* =========================
+   UPLOAD BUTTON
+   ========================= */
+
+.pp-upload-button {
+  display: flex;
+
+  width: 100%;
+  min-height: 46px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 11px 17px;
+
+  border: 1px solid #111111;
+  border-radius: 999px;
+
+  background: #111111;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1;
+
+  cursor: pointer;
+
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.pp-upload-button:hover {
+  opacity: 0.86;
+}
+
+.pp-upload-button:active {
+  transform: scale(0.985);
+}
+
+.pp-file-input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  overflow: hidden;
+
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+
+  white-space: nowrap;
+}
+
+.pp-file-name {
+  margin: 9px 0 0;
+
+  color: rgba(17, 17, 17, 0.58);
+
+  font-size: 11px;
+  line-height: 1.4;
+
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================
+   EDIT AREAS
+   ========================= */
+
+.pp-edit-controls,
+.pp-text-edit-controls {
+  margin-top: 16px;
+  padding-top: 15px;
+
+  border-top: 1px solid rgba(17, 17, 17, 0.12);
+}
+
+
+/* =========================
+   LABELS
+   ========================= */
+
+.pp-range-label,
+.pp-field-label {
+  display: block;
+
+  margin: 0 0 7px;
+
+  color: #111111;
+
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+
+/* =========================
+   RANGE SLIDERS
+   ========================= */
+
+.pp-range {
+  width: 100%;
+  height: 27px;
+
+  margin: 0;
+
+  accent-color: #111111;
+
+  cursor: pointer;
+}
+
+
+/* =========================
+   TEXT INPUT + SELECT
+   ========================= */
+
+.pp-text-input,
+.pp-select {
+  width: 100%;
+  min-height: 44px;
+
+  padding: 10px 12px;
+
+  border: 1px solid rgba(17, 17, 17, 0.22);
+  border-radius: 10px;
+
+  background: #ffffff;
+  color: #111111;
+
+  font: inherit;
+  font-size: 13px;
+
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.pp-text-input::placeholder {
+  color: rgba(17, 17, 17, 0.4);
+}
+
+.pp-text-input:focus,
+.pp-select:focus {
+  outline: none;
+
+  border-color: #111111;
+
+  box-shadow:
+    0 0 0 3px rgba(17, 17, 17, 0.06);
+}
+
+
+/* =========================
+   FONT + COLOR
+   ========================= */
+
+.pp-text-options {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    88px;
+
+  gap: 10px;
+
+  margin-top: 12px;
+}
+
+.pp-field-group {
+  min-width: 0;
+}
+
+.pp-color-input {
+  width: 100%;
+  height: 44px;
+
+  padding: 5px;
+
+  border: 1px solid rgba(17, 17, 17, 0.22);
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  cursor: pointer;
+}
+
+
+/* =========================
+   SECONDARY BUTTONS
+   ========================= */
+
+.pp-button-row {
+  display: flex;
+  flex-wrap: wrap;
+
+  gap: 8px;
+
+  margin-top: 13px;
+}
+
+.pp-secondary-button {
+  display: inline-flex;
+
+  min-height: 39px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 9px 13px;
+
+  border: 1px solid rgba(17, 17, 17, 0.22);
+  border-radius: 999px;
+
+  background: #ffffff;
+  color: #111111;
+
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.pp-secondary-button:hover {
+  background: #eeeeec;
+}
+
+.pp-secondary-button:active {
+  transform: scale(0.98);
+}
+
+
+/* =========================
+   CONFIRM
+   ========================= */
+
+.pp-confirmation {
+  margin-top: 12px;
+}
+
+.pp-confirm-button,
+.pp-continue-button {
+  display: flex;
+
+  width: 100%;
+  min-height: 49px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 11px 18px;
+
+  border: 1px solid #111111;
+  border-radius: 999px;
+
+  background: #111111;
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.pp-confirm-button:hover,
+.pp-continue-button:hover {
+  opacity: 0.86;
+}
+
+.pp-confirm-button:active,
+.pp-continue-button:active {
+  transform: scale(0.985);
+}
+
+.pp-confirm-button:disabled,
+.pp-continue-button:disabled {
+  opacity: 0.55;
+
+  cursor: wait;
+}
+
+
+/* =========================
+   CONFIRMED STATE
+   ========================= */
+
+.pp-confirmed-state {
+  padding: 16px;
+
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 14px;
+
+  background: #f8f8f7;
+}
+
+.pp-confirmed-message {
+  margin: 0;
+
+  color: #111111;
+
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+
+/* LOCK EDITING AFTER CONFIRM */
+
+.pp-studio.pp-is-confirmed .pp-control-section {
+  opacity: 0.5;
+
+  pointer-events: none;
+}
+
+.pp-studio.pp-is-confirmed .pp-artwork,
+.pp-studio.pp-is-confirmed .pp-text-layer {
+  cursor: default;
+
+  pointer-events: none;
+}
+
+
+/* =========================
+   ERROR
+   ========================= */
+
+.pp-error {
+  margin: 12px 0 0;
+
+  padding: 10px 12px;
+
+  border-radius: 9px;
+
+  background: #fff0ef;
+  color: #9c211a;
+
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+
+/* =========================
+   HIDDEN
+   ========================= */
+
+.pp-customizer [hidden],
+.pp-studio [hidden] {
+  display: none !important;
+}
+
+
+/* =========================
+   TABLET
+   ========================= */
+
+@media screen and (max-width: 1000px) {
+  .pp-studio {
+    padding: 10px;
+  }
+
+  .pp-studio-dialog {
+    width: 98vw;
+    height: 97vh;
+  }
+
+  .pp-studio-body {
+    grid-template-columns:
+      minmax(0, 1.25fr)
+      minmax(310px, 0.75fr);
+  }
+
+  .pp-studio-preview-column {
+    padding: 18px;
+  }
+
+  .pp-product-image {
+    max-height: calc(97vh - 170px);
+  }
+}
+
+
+/* =========================
+   MOBILE
+   ========================= */
+
+@media screen and (max-width: 749px) {
+  .pp-launcher {
+    display: block;
+
+    padding: 16px;
+  }
+
+  .pp-open-studio-button {
+    width: 100%;
+
+    margin-top: 14px;
+  }
+
+  .pp-studio {
+    padding: 0;
+  }
+
+  .pp-studio-dialog {
+    width: 100vw;
+    height: 100dvh;
+
+    border-radius: 0;
+  }
+
+  .pp-studio-header {
+    min-height: 64px;
+
+    padding: 11px 14px;
+  }
+
+  .pp-studio-title {
+    font-size: 19px;
+  }
+
+  .pp-close-studio-button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .pp-studio-body {
+    display: block;
+
+    overflow-y: auto;
+  }
+
+  .pp-studio-preview-column {
+    display: block;
+
+    min-height: auto;
+
+    padding: 14px;
+
+    overflow: visible;
+  }
+
+  .pp-preview {
+    display: block;
+
+    height: auto;
+  }
+
+  .pp-product-stage {
+    display: block;
+
+    width: fit-content;
+    max-width: 100%;
+
+    margin: 0 auto;
+
+    border-radius: 14px;
+  }
+
+  .pp-product-image {
+    width: auto;
+    max-width: 100%;
+
+    max-height: 48vh;
+
+    margin: 0 auto;
+  }
+
+  .pp-preview-help {
+    margin-top: 8px;
+  }
+
+  .pp-studio-controls-column {
+    padding: 16px;
+
+    overflow: visible;
+
+    border-top: 1px solid rgba(17, 17, 17, 0.12);
+    border-left: 0;
+  }
+
+  .pp-text-options {
+    grid-template-columns: 1fr;
+  }
+
+  .pp-button-row {
+    display: grid;
+
+    grid-template-columns: 1fr;
+  }
+
+  .pp-secondary-button {
+    width: 100%;
+  }
+}
+
+
+/* =========================
+   VERY SMALL PHONES
+   ========================= */
+
+@media screen and (max-width: 420px) {
+  .pp-launcher {
+    padding: 14px;
+  }
+
+  .pp-studio-controls-column {
+    padding: 14px;
+  }
+
+  .pp-control-section {
+    padding: 15px;
+  }
+}
