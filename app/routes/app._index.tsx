@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import type {
+  PointerEvent as ReactPointerEvent,
+} from "react";
+import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData } from "react-router";
+import {
+  useFetcher,
+  useLoaderData,
+  useRevalidator,
+} from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { authenticate } from "../shopify.server";
 
 type MetafieldValue = {
   value: string;
@@ -24,8 +31,6 @@ type ProductNode = {
         image: {
           url: string;
           altText: string | null;
-          width: number | null;
-          height: number | null;
         } | null;
       } | null;
     }>;
@@ -101,8 +106,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   image {
                     url
                     altText
-                    width
-                    height
                   }
                 }
               }
@@ -313,6 +316,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Index() {
   const { products } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const revalidator = useRevalidator();
   const shopify = useAppBridge();
   const [selectedId, setSelectedId] = useState(products[0]?.id ?? "");
   const selectedProduct =
@@ -341,10 +345,11 @@ export default function Index() {
   }, [selectedProduct]);
 
   useEffect(() => {
-    if (fetcher.data?.ok) {
-      shopify.toast.show("Personalization settings saved");
-    }
-  }, [fetcher.data, shopify]);
+    if (!fetcher.data?.ok) return;
+
+    shopify.toast.show("Personalization settings saved");
+    revalidator.revalidate();
+  }, [fetcher.data, revalidator, shopify]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -402,7 +407,7 @@ export default function Index() {
   }, []);
 
   const beginInteraction = (
-    event: React.PointerEvent,
+    event: ReactPointerEvent,
     mode: Interaction["mode"],
   ) => {
     if (!values.enabled || !stageRef.current) return;
@@ -461,6 +466,13 @@ export default function Index() {
       </s-page>
     );
   }
+
+  const numberFields = [
+    ["left", "Left %"],
+    ["top", "Top %"],
+    ["width", "Width %"],
+    ["height", "Height %"],
+  ] as const;
 
   return (
     <s-page heading="Personalize Preview">
@@ -613,7 +625,7 @@ export default function Index() {
           </div>
 
           <div style={{ display: "grid", gap: 20 }}>
-            <label
+            <div
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -624,15 +636,19 @@ export default function Index() {
                 borderRadius: 12,
               }}
             >
-              <span>
-                <strong style={{ display: "block", marginBottom: 4 }}>
+              <div>
+                <label
+                  htmlFor="pp-enable-personalization"
+                  style={{ display: "block", fontWeight: 750, marginBottom: 4 }}
+                >
                   Enable personalization
-                </strong>
+                </label>
                 <span style={{ color: "#616161", fontSize: 13 }}>
                   Show the customizer for this product.
                 </span>
-              </span>
+              </div>
               <input
+                id="pp-enable-personalization"
                 type="checkbox"
                 checked={values.enabled}
                 onChange={(event) =>
@@ -643,7 +659,7 @@ export default function Index() {
                 }
                 style={{ width: 22, height: 22 }}
               />
-            </label>
+            </div>
 
             <div
               style={{
@@ -653,32 +669,39 @@ export default function Index() {
                 opacity: values.enabled ? 1 : 0.55,
               }}
             >
-              {([
-                ["left", "Left %"],
-                ["top", "Top %"],
-                ["width", "Width %"],
-                ["height", "Height %"],
-              ] as const).map(([key, label]) => (
-                <label key={key} style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontWeight: 650, fontSize: 13 }}>{label}</span>
-                  <input
-                    type="number"
-                    min={key === "width" || key === "height" ? 5 : 0}
-                    max={100}
-                    step={1}
-                    disabled={!values.enabled}
-                    value={Math.round(values[key])}
-                    onChange={(event) => updateNumber(key, event.currentTarget.value)}
-                    style={{
-                      minHeight: 42,
-                      padding: "0 10px",
-                      border: "1px solid #8a8a8a",
-                      borderRadius: 8,
-                      fontSize: 15,
-                    }}
-                  />
-                </label>
-              ))}
+              {numberFields.map(([key, labelText]) => {
+                const inputId = `pp-${key}`;
+
+                return (
+                  <div key={key} style={{ display: "grid", gap: 6 }}>
+                    <label
+                      htmlFor={inputId}
+                      style={{ fontWeight: 650, fontSize: 13 }}
+                    >
+                      {labelText}
+                    </label>
+                    <input
+                      id={inputId}
+                      type="number"
+                      min={key === "width" || key === "height" ? 5 : 0}
+                      max={100}
+                      step={1}
+                      disabled={!values.enabled}
+                      value={Math.round(values[key])}
+                      onChange={(event) =>
+                        updateNumber(key, event.currentTarget.value)
+                      }
+                      style={{
+                        minHeight: 42,
+                        padding: "0 10px",
+                        border: "1px solid #8a8a8a",
+                        borderRadius: 8,
+                        fontSize: 15,
+                      }}
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             <button
