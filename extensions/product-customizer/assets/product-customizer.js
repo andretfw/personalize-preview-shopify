@@ -22,8 +22,11 @@
 
     if (!loadingPromise) {
       loadingPromise = import(
-        getAssetScriptUrl("product-customizer-controller-v2.js")
+        getAssetScriptUrl("product-customizer-controller-v2-styles.js")
       )
+        .then(() =>
+          import(getAssetScriptUrl("product-customizer-controller-v2.js")),
+        )
         .then(() => {
           loaded = true;
         })
