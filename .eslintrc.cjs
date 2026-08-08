@@ -50,6 +50,7 @@ module.exports = {
       },
       rules: {
         "react/no-unknown-property": ["error", { ignore: ["variant"] }],
+        "jsx-a11y/label-has-associated-control": ["error", { depth: 4 }],
       },
     },
 
