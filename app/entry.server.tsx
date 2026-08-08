@@ -1,8 +1,8 @@
-import { renderToString } from "react-dom/server";
+import { renderToReadableStream } from "react-dom/server";
 import { ServerRouter, type EntryContext } from "react-router";
 import { addDocumentResponseHeaders } from "./shopify.server";
 
-export default function handleRequest(
+export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
@@ -10,14 +10,21 @@ export default function handleRequest(
 ) {
   addDocumentResponseHeaders(request, responseHeaders);
 
-  const markup = renderToString(
+  let didError = false;
+  const stream = await renderToReadableStream(
     <ServerRouter context={reactRouterContext} url={request.url} />,
+    {
+      onError(error) {
+        didError = true;
+        console.error(error);
+      },
+    },
   );
 
   responseHeaders.set("Content-Type", "text/html; charset=utf-8");
 
-  return new Response(`<!DOCTYPE html>${markup}`, {
+  return new Response(stream, {
     headers: responseHeaders,
-    status: responseStatusCode,
+    status: didError ? 500 : responseStatusCode,
   });
 }
