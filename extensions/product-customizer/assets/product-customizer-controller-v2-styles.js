@@ -49,6 +49,16 @@
     }
     .pp-proof-status[hidden] { display: none !important; }
     .pp-print-side-tabs button:disabled { cursor: wait; opacity: .6; }
+    .pp-studio:has([data-pp-confirm]:disabled) .pp-control-section,
+    .pp-studio:has([data-pp-confirm]:disabled) .pp-print-side-tabs,
+    .pp-studio:has([data-pp-confirm]:disabled) .pp-artwork,
+    .pp-studio:has([data-pp-confirm]:disabled) .pp-text-layer {
+      pointer-events: none;
+    }
+    .pp-studio:has([data-pp-confirm]:disabled) .pp-control-section,
+    .pp-studio:has([data-pp-confirm]:disabled) .pp-print-side-tabs {
+      opacity: .58;
+    }
   `;
   document.head.appendChild(style);
 })();
