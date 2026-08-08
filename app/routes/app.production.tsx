@@ -382,7 +382,7 @@ export default function ProductionSettings() {
 
       <s-section slot="aside" heading="How the quality check works">
         <s-paragraph>
-          The storefront compares the artwork's pixel dimensions with its effective printed size.
+          The storefront compares the uploaded artwork pixel dimensions with its effective printed size.
           It labels the result Great, Okay, or Too low and updates as the customer resizes the image.
         </s-paragraph>
       </s-section>
