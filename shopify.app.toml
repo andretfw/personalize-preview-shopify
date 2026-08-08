@@ -11,7 +11,7 @@ automatically_update_urls_on_dev = true
 include_config_on_deploy = true
 
 [access_scopes]
-scopes = "read_files,write_app_proxy,write_files,write_metaobject_definitions,write_metaobjects,write_products"
+scopes = "read_files,write_app_proxy,write_files,write_products"
 
 [auth]
 redirect_urls = ["https://personalize-preview-shopify.tfwandre.workers.dev/auth/callback"]
@@ -26,6 +26,18 @@ api_version = "2026-07"
   [[webhooks.subscriptions]]
   topics = ["app/scopes_update"]
   uri = "/webhooks/app/scopes_update"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request"]
+  uri = "/webhooks/customers/data_request"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/redact"]
+  uri = "/webhooks/customers/redact"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["shop/redact"]
+  uri = "/webhooks/shop/redact"
 
 [app_proxy]
 url = "/app-proxy"
