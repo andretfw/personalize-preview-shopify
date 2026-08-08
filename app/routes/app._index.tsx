@@ -5,7 +5,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData, useRevalidator } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
@@ -335,7 +335,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function PersonalizeDashboard() {
   const { products } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-  const revalidator = useRevalidator();
   const shopify = useAppBridge();
 
   const [selectedId, setSelectedId] = useState(products[0]?.id ?? "");
@@ -357,13 +356,24 @@ export default function PersonalizeDashboard() {
   }, [selectedProduct]);
 
   useEffect(() => {
-    if (!fetcher.data?.ok) return;
+    const result = fetcher.data;
+    if (!result?.ok) return;
     if (handledSaveSequenceRef.current === saveSequenceRef.current) return;
 
     handledSaveSequenceRef.current = saveSequenceRef.current;
+
+    const savedProduct = products.find(
+      (product) => product.id === result.productId,
+    );
+    if (savedProduct) {
+      Object.assign(savedProduct, result.values);
+    }
+    if (selectedId === result.productId) {
+      setValues(result.values);
+    }
+
     shopify.toast.show("Personalization settings saved");
-    revalidator.revalidate();
-  }, [fetcher.data, revalidator, shopify]);
+  }, [fetcher.data, products, selectedId, shopify]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
