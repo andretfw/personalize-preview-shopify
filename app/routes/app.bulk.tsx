@@ -428,33 +428,41 @@ export default function BulkProductSetup() {
               overflow: "hidden",
             }}
           >
-            {targets.map((product, index) => (
-              <label
-                key={product.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "12px 14px",
-                  borderTop: index ? "1px solid #ededed" : undefined,
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedTargets.has(product.id)}
-                  onChange={(event) => toggleTarget(product.id, event.currentTarget.checked)}
-                  style={{ width: 18, height: 18 }}
-                />
-                <span style={{ flex: 1 }}>
-                  <strong>{product.title}</strong>
-                  <span style={{ marginLeft: 8, color: "#777", fontSize: 13 }}>
-                    {product.status.toLowerCase()}
-                    {product.configured ? " · already configured" : ""}
-                  </span>
-                </span>
-              </label>
-            ))}
+            {targets.map((product, index) => {
+              const checkboxId = `pp-bulk-target-${product.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+              return (
+                <div
+                  key={product.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "12px 14px",
+                    borderTop: index ? "1px solid #ededed" : undefined,
+                  }}
+                >
+                  <input
+                    id={checkboxId}
+                    type="checkbox"
+                    checked={selectedTargets.has(product.id)}
+                    onChange={(event) =>
+                      toggleTarget(product.id, event.currentTarget.checked)
+                    }
+                    style={{ width: 18, height: 18 }}
+                  />
+                  <label
+                    htmlFor={checkboxId}
+                    style={{ flex: 1, cursor: "pointer" }}
+                  >
+                    <strong>{product.title}</strong>
+                    <span style={{ marginLeft: 8, color: "#777", fontSize: 13 }}>
+                      {product.status.toLowerCase()}
+                      {product.configured ? " · already configured" : ""}
+                    </span>
+                  </label>
+                </div>
+              );
+            })}
           </div>
 
           <button
