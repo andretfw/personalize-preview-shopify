@@ -8,7 +8,6 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 
 type Attribute = { key: string; value: string | null };
-type MetafieldValue = { value: string } | null;
 
 type OrderLineNode = {
   id: string;
@@ -18,26 +17,14 @@ type OrderLineNode = {
   sku: string | null;
   variantTitle: string | null;
   customAttributes: Attribute[];
-  product: {
-    id: string;
-    title: string;
-    featuredMedia: {
-      preview: {
-        image: { url: string; altText: string | null } | null;
-      } | null;
-    } | null;
-    printWidthCm: MetafieldValue;
-    printHeightCm: MetafieldValue;
-  } | null;
 };
 
 type OrderNode = {
   id: string;
-  legacyResourceId: string;
   name: string;
   createdAt: string;
   displayFinancialStatus: string | null;
-  displayFulfillmentStatus: string;
+  displayFulfillmentStatus: string | null;
   lineItems: { nodes: OrderLineNode[] };
 };
 
@@ -59,16 +46,11 @@ type ProductionJob = {
   proofUrl: string;
   quality: string;
   printSize: string;
-  printSizeSource: "order" | "product" | "";
+  printSizeSource: "order" | "";
   customText: string;
   placement: string;
   confirmed: boolean;
   ready: boolean;
-};
-
-const positiveNumber = (field: MetafieldValue) => {
-  const value = Number(field?.value);
-  return Number.isFinite(value) && value > 0 ? value : 0;
 };
 
 const attributeMap = (attributes: Attribute[]) => {
@@ -128,6 +110,25 @@ const humanStatus = (value: string | null | undefined) =>
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+const errorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown Shopify error";
+  }
+};
+
+const emptyResult = (
+  orderAccessGranted: boolean,
+  orderAccessError = "",
+) => ({
+  jobs: [] as ProductionJob[],
+  orderAccessGranted,
+  orderAccessError,
+});
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { scopes } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -136,133 +137,136 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: false };
   }
 
-  await scopes.request(["read_orders"]);
-  return { ok: true };
+  try {
+    await scopes.request(["read_orders"]);
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    return { ok: false, error: errorMessage(error) };
+  }
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session, scopes } = await authenticate.admin(request);
-  const scopeDetail = await scopes.query();
-  const orderAccessGranted = scopeDetail.granted.includes("read_orders");
 
-  if (!orderAccessGranted) {
-    return {
-      jobs: [] as ProductionJob[],
-      orderAccessGranted: false,
-      orderAccessError: "",
-    };
+  let orderAccessGranted = false;
+  try {
+    const scopeDetail = await scopes.query();
+    orderAccessGranted = scopeDetail.granted.includes("read_orders");
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    return emptyResult(
+      false,
+      `Could not verify Shopify order access: ${errorMessage(error)}`,
+    );
   }
 
-  const response = await admin.graphql(
-    `#graphql
-      query PersonalizePreviewProductionOrders {
-        orders(first: 50, reverse: true, sortKey: CREATED_AT) {
-          nodes {
-            id
-            legacyResourceId
-            name
-            createdAt
-            displayFinancialStatus
-            displayFulfillmentStatus
-            lineItems(first: 100) {
-              nodes {
-                id
-                name
-                title
-                quantity
-                sku
-                variantTitle
-                customAttributes { key value }
-                product {
+  if (!orderAccessGranted) {
+    return emptyResult(false);
+  }
+
+  try {
+    const response = await admin.graphql(
+      `#graphql
+        query PersonalizePreviewProductionOrders {
+          orders(first: 50, reverse: true, sortKey: CREATED_AT) {
+            nodes {
+              id
+              name
+              createdAt
+              displayFinancialStatus
+              displayFulfillmentStatus
+              lineItems(first: 100) {
+                nodes {
                   id
+                  name
                   title
-                  featuredMedia {
-                    preview {
-                      image { url altText }
-                    }
-                  }
-                  printWidthCm: metafield(namespace: "custom", key: "personalize_print_width_cm") { value }
-                  printHeightCm: metafield(namespace: "custom", key: "personalize_print_height_cm") { value }
+                  quantity
+                  sku
+                  variantTitle
+                  customAttributes { key value }
                 }
               }
             }
           }
         }
-      }
-    `,
-  );
+      `,
+    );
 
-  const json = (await response.json()) as {
-    data?: { orders?: { nodes?: OrderNode[] } };
-    errors?: Array<{ message?: string }>;
-  };
-
-  if (json.errors?.length) {
-    return {
-      jobs: [] as ProductionJob[],
-      orderAccessGranted: true,
-      orderAccessError: json.errors
-        .map((error) => error.message || "Shopify order query failed")
-        .join(" "),
+    const json = (await response.json()) as {
+      data?: { orders?: { nodes?: OrderNode[] } };
+      errors?: Array<{ message?: string }>;
     };
-  }
 
-  const jobs: ProductionJob[] = [];
-
-  for (const order of json.data?.orders?.nodes ?? []) {
-    for (const line of order.lineItems.nodes ?? []) {
-      const properties = attributeMap(line.customAttributes ?? []);
-      const personalized =
-        properties["_Personalized"] === "Yes" ||
-        properties["_Design confirmed"] === "Yes" ||
-        Boolean(
-          properties["_Artwork preview"] || properties["_Approved design proof"],
-        );
-
-      if (!personalized) continue;
-
-      const artworkUrl = properties["_Artwork preview"] || "";
-      const proofUrl = properties["_Approved design proof"] || "";
-      const confirmed = properties["_Design confirmed"] === "Yes";
-      const widthCm = positiveNumber(line.product?.printWidthCm ?? null);
-      const heightCm = positiveNumber(line.product?.printHeightCm ?? null);
-      const orderPrintSize = properties["_Print size"] || "";
-      const productPrintSize =
-        widthCm && heightCm ? `${widthCm} × ${heightCm} cm` : "";
-      const image = line.product?.featuredMedia?.preview?.image ?? null;
-
-      jobs.push({
-        id: `${order.id}-${line.id}`,
-        orderName: order.name,
-        orderUrl: `https://${session.shop}/admin/orders/${order.legacyResourceId}`,
-        createdAt: order.createdAt,
-        financialStatus: humanStatus(order.displayFinancialStatus),
-        fulfillmentStatus: humanStatus(order.displayFulfillmentStatus),
-        productTitle: line.title || line.product?.title || line.name,
-        variantTitle: line.variantTitle || "",
-        quantity: line.quantity,
-        sku: line.sku || "",
-        imageUrl: image?.url || "",
-        imageAlt: image?.altText || line.title || "Product image",
-        artworkUrl,
-        artworkFile: properties["_Artwork file"] || "Customer artwork",
-        proofUrl,
-        quality: properties["_Print quality"] || "Not measured",
-        printSize: orderPrintSize || productPrintSize || "Not configured",
-        printSizeSource: orderPrintSize
-          ? "order"
-          : productPrintSize
-            ? "product"
-            : "",
-        customText: properties["Custom text"] || "",
-        placement: formatPlacement(properties["_Artwork placement"] || ""),
-        confirmed,
-        ready: Boolean(confirmed && artworkUrl && proofUrl),
-      });
+    if (json.errors?.length) {
+      return emptyResult(
+        true,
+        json.errors
+          .map((error) => error.message || "Shopify order query failed")
+          .join(" "),
+      );
     }
-  }
 
-  return { jobs, orderAccessGranted: true, orderAccessError: "" };
+    const jobs: ProductionJob[] = [];
+
+    for (const order of json.data?.orders?.nodes ?? []) {
+      for (const line of order.lineItems?.nodes ?? []) {
+        const properties = attributeMap(line.customAttributes ?? []);
+        const personalized =
+          properties["_Personalized"] === "Yes" ||
+          properties["_Design confirmed"] === "Yes" ||
+          Boolean(
+            properties["_Artwork preview"] || properties["_Approved design proof"],
+          );
+
+        if (!personalized) continue;
+
+        const artworkUrl = properties["_Artwork preview"] || "";
+        const proofUrl = properties["_Approved design proof"] || "";
+        const confirmed = properties["_Design confirmed"] === "Yes";
+        const orderNumericId = order.id.split("/").pop() || "";
+
+        jobs.push({
+          id: `${order.id}-${line.id}`,
+          orderName: order.name,
+          orderUrl: orderNumericId
+            ? `https://${session.shop}/admin/orders/${orderNumericId}`
+            : `https://${session.shop}/admin/orders`,
+          createdAt: order.createdAt,
+          financialStatus: humanStatus(order.displayFinancialStatus),
+          fulfillmentStatus: humanStatus(order.displayFulfillmentStatus),
+          productTitle: line.title || line.name,
+          variantTitle: line.variantTitle || "",
+          quantity: line.quantity,
+          sku: line.sku || "",
+          imageUrl: "",
+          imageAlt: line.title || "Product image",
+          artworkUrl,
+          artworkFile: properties["_Artwork file"] || "Customer artwork",
+          proofUrl,
+          quality: properties["_Print quality"] || "Not measured",
+          printSize: properties["_Print size"] || "Not recorded on this order",
+          printSizeSource: properties["_Print size"] ? "order" : "",
+          customText: properties["Custom text"] || "",
+          placement: formatPlacement(properties["_Artwork placement"] || ""),
+          confirmed,
+          ready: Boolean(confirmed && artworkUrl && proofUrl),
+        });
+      }
+    }
+
+    return {
+      jobs,
+      orderAccessGranted: true,
+      orderAccessError: "",
+    };
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    return emptyResult(
+      true,
+      `Orders API request failed: ${errorMessage(error)}`,
+    );
+  }
 };
 
 const cardStyle = {
@@ -315,6 +319,21 @@ export default function ProductionOrders() {
               line items and their artwork, proof, print quality, and placement.
               Customer names and addresses are not loaded on this page.
             </div>
+            {orderAccessError ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  borderRadius: 9,
+                  background: "#fff4df",
+                  color: "#7b5200",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                {orderAccessError}
+              </div>
+            ) : null}
             <accessFetcher.Form method="post" style={{ marginTop: 16 }}>
               <input type="hidden" name="intent" value="request-order-access" />
               <button
@@ -529,12 +548,7 @@ export default function ProductionOrders() {
                 >
                   <div>
                     <div style={labelStyle}>Print size</div>
-                    <div style={valueStyle}>
-                      {job.printSize}
-                      {job.printSizeSource === "product"
-                        ? " · current product setup"
-                        : ""}
-                    </div>
+                    <div style={valueStyle}>{job.printSize}</div>
                   </div>
                   <div>
                     <div style={labelStyle}>Print quality</div>
