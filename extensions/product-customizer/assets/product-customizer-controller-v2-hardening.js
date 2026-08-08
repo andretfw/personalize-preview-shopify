@@ -29,23 +29,6 @@
   );
 
   document.addEventListener(
-    "click",
-    (event) => {
-      const sideButton = event.target.closest(".pp-print-side-tabs button");
-      if (!sideButton) return;
-
-      const studio = sideButton.closest("[data-pp-studio]");
-      if (!studio?.classList.contains("pp-is-confirmed")) return;
-
-      const editButton = studio.querySelector("[data-pp-edit-design]");
-      if (editButton instanceof HTMLButtonElement) {
-        editButton.click();
-      }
-    },
-    true,
-  );
-
-  document.addEventListener(
     "keydown",
     (event) => {
       if (event.key !== "Escape") return;
