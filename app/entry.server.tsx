@@ -1,6 +1,8 @@
-import { renderToReadableStream } from "react-dom/server";
+import ReactDOMServer from "react-dom/server.browser";
 import { ServerRouter, type EntryContext } from "react-router";
 import { addDocumentResponseHeaders } from "./shopify.server";
+
+const { renderToReadableStream } = ReactDOMServer;
 
 export default async function handleRequest(
   request: Request,
