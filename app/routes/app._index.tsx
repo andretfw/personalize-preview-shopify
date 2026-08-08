@@ -356,19 +356,20 @@ export default function PersonalizeDashboard() {
   }, [selectedProduct]);
 
   useEffect(() => {
-    if (!fetcher.data?.ok) return;
+    const result = fetcher.data;
+    if (!result?.ok) return;
     if (handledSaveSequenceRef.current === saveSequenceRef.current) return;
 
     handledSaveSequenceRef.current = saveSequenceRef.current;
 
     const savedProduct = products.find(
-      (product) => product.id === fetcher.data.productId,
+      (product) => product.id === result.productId,
     );
     if (savedProduct) {
-      Object.assign(savedProduct, fetcher.data.values);
+      Object.assign(savedProduct, result.values);
     }
-    if (selectedId === fetcher.data.productId) {
-      setValues(fetcher.data.values);
+    if (selectedId === result.productId) {
+      setValues(result.values);
     }
 
     shopify.toast.show("Personalization settings saved");
