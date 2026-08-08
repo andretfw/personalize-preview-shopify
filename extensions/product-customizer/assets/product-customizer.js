@@ -2,7 +2,7 @@
   let loadingPromise = null;
   let loaded = false;
 
-  function getCoreScriptUrl() {
+  function getAssetScriptUrl(filename) {
     const scripts = Array.from(
       document.querySelectorAll("script[src]"),
     );
@@ -21,7 +21,7 @@
 
     url.pathname = url.pathname.replace(
       /product-customizer\.js$/,
-      "product-customizer-core.js",
+      filename,
     );
 
     return url.href;
@@ -33,7 +33,14 @@
     }
 
     if (!loadingPromise) {
-      loadingPromise = import(getCoreScriptUrl())
+      loadingPromise = import(
+        getAssetScriptUrl("product-customizer-core.js")
+      )
+        .then(() =>
+          import(
+            getAssetScriptUrl("product-customizer-enhancements.js")
+          ),
+        )
         .then(() => {
           loaded = true;
         })
