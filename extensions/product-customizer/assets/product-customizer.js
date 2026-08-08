@@ -38,12 +38,7 @@
       )
         .then(() =>
           import(
-            getAssetScriptUrl("product-customizer-sides-proxy.js")
-          ),
-        )
-        .then(() =>
-          import(
-            getAssetScriptUrl("product-customizer-sides.js")
+            getAssetScriptUrl("product-customizer-sides-v2.js")
           ),
         )
         .then(() =>
