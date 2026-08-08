@@ -347,6 +347,8 @@ export default function PersonalizeDashboard() {
 
   const stageRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<Interaction | null>(null);
+  const saveSequenceRef = useRef(0);
+  const handledSaveSequenceRef = useRef(0);
   const isSaving = fetcher.state !== "idle";
 
   useEffect(() => {
@@ -356,6 +358,9 @@ export default function PersonalizeDashboard() {
 
   useEffect(() => {
     if (!fetcher.data?.ok) return;
+    if (handledSaveSequenceRef.current === saveSequenceRef.current) return;
+
+    handledSaveSequenceRef.current = saveSequenceRef.current;
     shopify.toast.show("Personalization settings saved");
     revalidator.revalidate();
   }, [fetcher.data, revalidator, shopify]);
@@ -457,6 +462,8 @@ export default function PersonalizeDashboard() {
 
   const saveSettings = () => {
     if (!selectedProduct) return;
+
+    saveSequenceRef.current += 1;
 
     const formData = new FormData();
     formData.set("productId", selectedProduct.id);
