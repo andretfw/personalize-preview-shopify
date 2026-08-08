@@ -19,39 +19,53 @@ export default function App() {
   const { showForm } = useLoaderData<typeof loader>();
 
   return (
-    <div className={styles.index}>
-      <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+    <main className={styles.index}>
+      <section className={styles.content}>
+        <div className={styles.badge}>Shopify product personalization</div>
+        <h1 className={styles.heading}>Personalize Preview</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          Let shoppers upload artwork, add text, and preview a personalized product
+          before adding it to cart.
         </p>
+
         {showForm && (
           <Form className={styles.form} method="post" action="/auth/login">
             <label className={styles.label}>
               <span>Shop domain</span>
-              <input className={styles.input} type="text" name="shop" />
-              <span>e.g: my-shop-domain.myshopify.com</span>
+              <input
+                className={styles.input}
+                type="text"
+                name="shop"
+                placeholder="your-store.myshopify.com"
+              />
             </label>
             <button className={styles.button} type="submit">
-              Log in
+              Open app
             </button>
           </Form>
         )}
-        <ul className={styles.list}>
-          <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
-          </li>
-          <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
-          </li>
-          <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
-          </li>
-        </ul>
-      </div>
-    </div>
+
+        <div className={styles.features}>
+          <article>
+            <strong>Live product preview</strong>
+            <span>Customers position artwork and text directly on the product.</span>
+          </article>
+          <article>
+            <strong>Product-specific print areas</strong>
+            <span>Configure the printable area for each product from Shopify Admin.</span>
+          </article>
+          <article>
+            <strong>Artwork saved with the order</strong>
+            <span>Confirmed artwork is stored in Shopify Files and attached to order data.</span>
+          </article>
+        </div>
+
+        <nav className={styles.footerLinks} aria-label="Legal and support">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/support">Support</a>
+        </nav>
+      </section>
+    </main>
   );
 }
