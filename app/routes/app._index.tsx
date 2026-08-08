@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import type {
-  PointerEvent as ReactPointerEvent,
-} from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import {
-  useFetcher,
-  useLoaderData,
-  useRevalidator,
-} from "react-router";
+import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 
-type MetafieldValue = {
-  value: string;
+type MetafieldValue = { value: string } | null;
+
+type ProductImage = {
+  url: string;
+  altText: string | null;
 } | null;
 
 type ProductNode = {
@@ -25,14 +22,12 @@ type ProductNode = {
   title: string;
   handle: string;
   status: string;
+  featuredMedia: {
+    preview: { image: ProductImage } | null;
+  } | null;
   media: {
     nodes: Array<{
-      preview: {
-        image: {
-          url: string;
-          altText: string | null;
-        } | null;
-      } | null;
+      image: ProductImage;
     }>;
   };
   personalizeEnabled: MetafieldValue;
@@ -69,6 +64,14 @@ type Interaction = {
   initial: SetupValues;
 };
 
+const DEFAULTS: SetupValues = {
+  enabled: false,
+  left: 35,
+  top: 22,
+  width: 30,
+  height: 45,
+};
+
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(Math.max(value, minimum), maximum);
 
@@ -88,21 +91,40 @@ const parseSubmittedNumber = (
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const valuesFromProduct = (product: ProductSetup | null): SetupValues =>
+  product
+    ? {
+        enabled: product.enabled,
+        left: product.left,
+        top: product.top,
+        width: product.width,
+        height: product.height,
+      }
+    : DEFAULTS;
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
   const response = await admin.graphql(
     `#graphql
       query PersonalizePreviewProducts {
-        products(first: 50, sortKey: TITLE) {
+        products(first: 100, sortKey: TITLE) {
           nodes {
             id
             title
             handle
             status
+            featuredMedia {
+              preview {
+                image {
+                  url
+                  altText
+                }
+              }
+            }
             media(first: 1, query: "media_type:IMAGE", sortKey: POSITION) {
               nodes {
-                preview {
+                ... on MediaImage {
                   image {
                     url
                     altText
@@ -132,16 +154,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   const json = (await response.json()) as {
-    data?: {
-      products?: {
-        nodes?: ProductNode[];
-      };
-    };
+    data?: { products?: { nodes?: ProductNode[] } };
+    errors?: Array<{ message?: string }>;
   };
+
+  if (json.errors?.length) {
+    throw new Error(
+      json.errors.map((error) => error.message || "Shopify query failed").join(" "),
+    );
+  }
 
   const products: ProductSetup[] = (json.data?.products?.nodes ?? []).map(
     (product) => {
-      const image = product.media.nodes[0]?.preview?.image ?? null;
+      const image =
+        product.featuredMedia?.preview?.image ?? product.media.nodes[0]?.image ?? null;
 
       return {
         id: product.id,
@@ -151,10 +177,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         imageUrl: image?.url ?? null,
         imageAlt: image?.altText || product.title,
         enabled: product.personalizeEnabled?.value === "true",
-        left: numberFromMetafield(product.printLeft, 35),
-        top: numberFromMetafield(product.printTop, 22),
-        width: numberFromMetafield(product.printWidth, 30),
-        height: numberFromMetafield(product.printHeight, 45),
+        left: numberFromMetafield(product.printLeft, DEFAULTS.left),
+        top: numberFromMetafield(product.printTop, DEFAULTS.top),
+        width: numberFromMetafield(product.printWidth, DEFAULTS.width),
+        height: numberFromMetafield(product.printHeight, DEFAULTS.height),
       };
     },
   );
@@ -173,16 +199,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const enabled = formData.get("enabled") === "true";
   const left = Math.round(
-    clamp(parseSubmittedNumber(formData.get("left"), 35), 0, 95),
+    clamp(parseSubmittedNumber(formData.get("left"), DEFAULTS.left), 0, 95),
   );
   const top = Math.round(
-    clamp(parseSubmittedNumber(formData.get("top"), 22), 0, 95),
+    clamp(parseSubmittedNumber(formData.get("top"), DEFAULTS.top), 0, 95),
   );
   const width = Math.round(
-    clamp(parseSubmittedNumber(formData.get("width"), 30), 5, 100 - left),
+    clamp(
+      parseSubmittedNumber(formData.get("width"), DEFAULTS.width),
+      5,
+      100 - left,
+    ),
   );
   const height = Math.round(
-    clamp(parseSubmittedNumber(formData.get("height"), 45), 5, 100 - top),
+    clamp(
+      parseSubmittedNumber(formData.get("height"), DEFAULTS.height),
+      5,
+      100 - top,
+    ),
   );
 
   const definitionResponse = await admin.graphql(
@@ -192,37 +226,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           ownerType: PRODUCT,
           namespace: "custom",
           key: "personalize_enabled"
-        }) {
-          type { name }
-        }
+        }) { type { name } }
         leftDef: metafieldDefinition(identifier: {
           ownerType: PRODUCT,
           namespace: "custom",
           key: "personalize_print_left"
-        }) {
-          type { name }
-        }
+        }) { type { name } }
         topDef: metafieldDefinition(identifier: {
           ownerType: PRODUCT,
           namespace: "custom",
           key: "personalize_print_top"
-        }) {
-          type { name }
-        }
+        }) { type { name } }
         widthDef: metafieldDefinition(identifier: {
           ownerType: PRODUCT,
           namespace: "custom",
           key: "personalize_print_width"
-        }) {
-          type { name }
-        }
+        }) { type { name } }
         heightDef: metafieldDefinition(identifier: {
           ownerType: PRODUCT,
           namespace: "custom",
           key: "personalize_print_height"
-        }) {
-          type { name }
-        }
+        }) { type { name } }
       }
     `,
   );
@@ -274,15 +298,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     `#graphql
       mutation SavePersonalizePreviewSettings($metafields: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $metafields) {
-          metafields {
-            key
-            value
-          }
-          userErrors {
-            field
-            message
-            code
-          }
+          metafields { key value }
+          userErrors { field message code }
         }
       }
     `,
@@ -291,19 +308,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const json = (await response.json()) as {
     data?: {
-      metafieldsSet?: {
-        userErrors?: Array<{ message: string }>;
-      };
+      metafieldsSet?: { userErrors?: Array<{ message: string }> };
     };
+    errors?: Array<{ message?: string }>;
   };
 
-  const errors = json.data?.metafieldsSet?.userErrors ?? [];
-
-  if (errors.length > 0) {
+  if (json.errors?.length) {
     return {
       ok: false,
-      errors: errors.map((error) => error.message),
+      errors: json.errors.map((error) => error.message || "Shopify save failed"),
     };
+  }
+
+  const errors = json.data?.metafieldsSet?.userErrors ?? [];
+  if (errors.length) {
+    return { ok: false, errors: errors.map((error) => error.message) };
   }
 
   return {
@@ -313,40 +332,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   };
 };
 
-export default function Index() {
+export default function PersonalizeDashboard() {
   const { products } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();
   const shopify = useAppBridge();
+
   const [selectedId, setSelectedId] = useState(products[0]?.id ?? "");
   const selectedProduct =
     products.find((product) => product.id === selectedId) ?? products[0] ?? null;
-  const [values, setValues] = useState<SetupValues>({
-    enabled: selectedProduct?.enabled ?? false,
-    left: selectedProduct?.left ?? 35,
-    top: selectedProduct?.top ?? 22,
-    width: selectedProduct?.width ?? 30,
-    height: selectedProduct?.height ?? 45,
-  });
+  const [values, setValues] = useState<SetupValues>(
+    valuesFromProduct(selectedProduct),
+  );
+
   const stageRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<Interaction | null>(null);
   const isSaving = fetcher.state !== "idle";
 
   useEffect(() => {
     if (!selectedProduct) return;
-
-    setValues({
-      enabled: selectedProduct.enabled,
-      left: selectedProduct.left,
-      top: selectedProduct.top,
-      width: selectedProduct.width,
-      height: selectedProduct.height,
-    });
+    setValues(valuesFromProduct(selectedProduct));
   }, [selectedProduct]);
 
   useEffect(() => {
     if (!fetcher.data?.ok) return;
-
     shopify.toast.show("Personalization settings saved");
     revalidator.revalidate();
   }, [fetcher.data, revalidator, shopify]);
@@ -399,7 +408,6 @@ export default function Index() {
 
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
-
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
@@ -410,8 +418,7 @@ export default function Index() {
     event: ReactPointerEvent,
     mode: Interaction["mode"],
   ) => {
-    if (!values.enabled || !stageRef.current) return;
-
+    if (!stageRef.current) return;
     event.preventDefault();
     event.stopPropagation();
 
@@ -422,6 +429,13 @@ export default function Index() {
       rect: stageRef.current.getBoundingClientRect(),
       initial: { ...values },
     };
+  };
+
+  const chooseProduct = (productId: string) => {
+    const nextProduct = products.find((product) => product.id === productId) ?? null;
+    setSelectedId(productId);
+    setValues(valuesFromProduct(nextProduct));
+    interactionRef.current = null;
   };
 
   const updateNumber = (
@@ -485,14 +499,14 @@ export default function Index() {
       </s-button>
 
       <s-section heading="Choose a product">
-        <div style={{ display: "grid", gap: 12 }}>
-          <label style={{ fontWeight: 650 }} htmlFor="pp-product-select">
+        <div style={{ display: "grid", gap: 10 }}>
+          <label htmlFor="pp-product-select" style={{ fontWeight: 650 }}>
             Product
           </label>
           <select
             id="pp-product-select"
-            value={selectedProduct.id}
-            onChange={(event) => setSelectedId(event.currentTarget.value)}
+            value={selectedId}
+            onChange={(event) => chooseProduct(event.currentTarget.value)}
             style={{
               width: "100%",
               minHeight: 44,
@@ -523,11 +537,22 @@ export default function Index() {
         >
           <div>
             <div
+              style={{
+                marginBottom: 10,
+                fontWeight: 700,
+                fontSize: 14,
+              }}
+            >
+              Previewing: {selectedProduct.title}
+            </div>
+
+            <div
               ref={stageRef}
               style={{
                 position: "relative",
                 width: "100%",
                 maxWidth: 680,
+                minHeight: selectedProduct.imageUrl ? undefined : 420,
                 margin: "0 auto",
                 background: "#f4f4f4",
                 borderRadius: 16,
@@ -538,6 +563,7 @@ export default function Index() {
             >
               {selectedProduct.imageUrl ? (
                 <img
+                  key={`${selectedProduct.id}:${selectedProduct.imageUrl}`}
                   src={selectedProduct.imageUrl}
                   alt={selectedProduct.imageAlt}
                   draggable={false}
@@ -555,7 +581,7 @@ export default function Index() {
                     textAlign: "center",
                   }}
                 >
-                  This product does not have a product image yet.
+                  This product does not have a featured product image yet.
                 </div>
               )}
 
@@ -569,17 +595,13 @@ export default function Index() {
                     width: `${values.width}%`,
                     height: `${values.height}%`,
                     boxSizing: "border-box",
-                    border: values.enabled
-                      ? "3px solid #006e52"
-                      : "3px dashed #8a8a8a",
-                    background: values.enabled
-                      ? "rgba(0, 110, 82, 0.16)"
-                      : "rgba(120, 120, 120, 0.10)",
-                    cursor: values.enabled ? "move" : "default",
+                    border: "3px solid #006e52",
+                    background: "rgba(0, 110, 82, 0.16)",
+                    cursor: "move",
                     lineHeight: 1.2,
                     display: "grid",
                     placeItems: "center",
-                    color: values.enabled ? "#004c3f" : "#666",
+                    color: "#004c3f",
                     fontWeight: 750,
                     fontSize: 13,
                     textAlign: "center",
@@ -587,26 +609,24 @@ export default function Index() {
                   }}
                 >
                   PRINT AREA
-                  {values.enabled && (
-                    <button
-                      type="button"
-                      aria-label="Resize print area"
-                      onPointerDown={(event) => beginInteraction(event, "resize")}
-                      style={{
-                        position: "absolute",
-                        right: -8,
-                        bottom: -8,
-                        width: 18,
-                        height: 18,
-                        padding: 0,
-                        border: "2px solid white",
-                        borderRadius: 5,
-                        background: "#006e52",
-                        cursor: "nwse-resize",
-                        touchAction: "none",
-                      }}
-                    />
-                  )}
+                  <button
+                    type="button"
+                    aria-label="Resize print area"
+                    onPointerDown={(event) => beginInteraction(event, "resize")}
+                    style={{
+                      position: "absolute",
+                      right: -8,
+                      bottom: -8,
+                      width: 18,
+                      height: 18,
+                      padding: 0,
+                      border: "2px solid white",
+                      borderRadius: 5,
+                      background: "#006e52",
+                      cursor: "nwse-resize",
+                      touchAction: "none",
+                    }}
+                  />
                 </div>
               )}
             </div>
@@ -620,7 +640,8 @@ export default function Index() {
               }}
             >
               Drag the green box to position it. Drag the square in the bottom-right
-              corner to resize it.
+              corner to resize it. You can set the area before turning personalization
+              on.
             </p>
           </div>
 
@@ -644,7 +665,7 @@ export default function Index() {
                   Enable personalization
                 </label>
                 <span style={{ color: "#616161", fontSize: 13 }}>
-                  Show the customizer for this product.
+                  Show the customizer for this product after you save.
                 </span>
               </div>
               <input
@@ -666,12 +687,10 @@ export default function Index() {
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
                 gap: 12,
-                opacity: values.enabled ? 1 : 0.55,
               }}
             >
               {numberFields.map(([key, labelText]) => {
                 const inputId = `pp-${key}`;
-
                 return (
                   <div key={key} style={{ display: "grid", gap: 6 }}>
                     <label
@@ -686,7 +705,6 @@ export default function Index() {
                       min={key === "width" || key === "height" ? 5 : 0}
                       max={100}
                       step={1}
-                      disabled={!values.enabled}
                       value={Math.round(values[key])}
                       onChange={(event) =>
                         updateNumber(key, event.currentTarget.value)
@@ -697,6 +715,7 @@ export default function Index() {
                         border: "1px solid #8a8a8a",
                         borderRadius: 8,
                         fontSize: 15,
+                        background: "white",
                       }}
                     />
                   </div>
@@ -743,15 +762,14 @@ export default function Index() {
 
       <s-section slot="aside" heading="How it works">
         <s-paragraph>
-          Pick a product, enable personalization, place the printable area on the
-          product image, and save. The app writes the Shopify product settings for
-          you — no manual metafield editing.
+          Pick a product, place its printable area on the correct product image,
+          switch personalization on when you want it live, and save. The app writes
+          the Shopify product settings automatically.
         </s-paragraph>
       </s-section>
     </s-page>
   );
 }
 
-export const headers: HeadersFunction = (headersArgs) => {
-  return boundary.headers(headersArgs);
-};
+export const headers: HeadersFunction = (headersArgs) =>
+  boundary.headers(headersArgs);
