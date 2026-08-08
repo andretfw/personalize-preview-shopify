@@ -672,12 +672,13 @@ export default function PersonalizeDashboard() {
                 id="pp-enable-personalization"
                 type="checkbox"
                 checked={values.enabled}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
                   setValues((current) => ({
                     ...current,
-                    enabled: event.currentTarget.checked,
-                  }))
-                }
+                    enabled: checked,
+                  }));
+                }}
                 style={{ width: 22, height: 22 }}
               />
             </div>
