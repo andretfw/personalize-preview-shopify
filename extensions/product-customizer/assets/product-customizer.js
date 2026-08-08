@@ -41,6 +41,11 @@
             getAssetScriptUrl("product-customizer-enhancements.js")
           ),
         )
+        .then(() =>
+          import(
+            getAssetScriptUrl("product-customizer-print-size.js")
+          ),
+        )
         .then(() => {
           loaded = true;
         })
