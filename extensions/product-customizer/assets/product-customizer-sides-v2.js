@@ -32,7 +32,6 @@
     if (!response.ok || !result?.ok || !result?.config) {
       throw new Error(result?.error || "The print-side setup could not be loaded.");
     }
-
     return result.config;
   }
 
@@ -47,7 +46,6 @@
   function setPendingSideProperties(properties) {
     pendingSideProperties = properties;
     const expected = properties;
-
     window.setTimeout(() => {
       if (pendingSideProperties === expected) pendingSideProperties = null;
     }, 5000);
@@ -58,7 +56,6 @@
     cartInterceptorInstalled = true;
 
     const nativeFetch = window.fetch.bind(window);
-
     window.fetch = (input, init) => {
       const url =
         typeof input === "string"
@@ -93,7 +90,7 @@
                     side: extra["_Print side"],
                   });
                 } catch {
-                  // Keep legacy placement text unchanged if it is not JSON.
+                  // Preserve legacy placement text if it is not JSON.
                 }
               }
 
@@ -181,7 +178,6 @@
     if (editControls?.parentNode) {
       editControls.parentNode.insertBefore(card, editControls.nextSibling);
     }
-
     return { card, label, detail };
   }
 
@@ -193,34 +189,37 @@
     const productId = productGid(customizer.dataset.productId);
     if (!productId) return;
 
+    // Capture every studio reference BEFORE the async config request. The core
+    // reparents the studio to document.body when it opens, so querying through
+    // customizer after the request resolves creates a race and returns null.
+    const studio = customizer.querySelector("[data-pp-studio]");
+    const previewColumn = customizer.querySelector(".pp-studio-preview-column");
+    const productImage = customizer.querySelector(".pp-product-image");
+    const printArea = customizer.querySelector("[data-pp-print-area]");
+    const emptyState = customizer.querySelector("[data-pp-empty-state] span");
+    const artwork = customizer.querySelector("[data-pp-artwork]");
+    const scaleInput = customizer.querySelector("[data-pp-scale]");
+    const editControls = customizer.querySelector("[data-pp-edit-controls]");
+    const continueButton = customizer.querySelector("[data-pp-continue]");
+    const editDesignButton = customizer.querySelector("[data-pp-edit-design]");
+
+    if (
+      !studio ||
+      !previewColumn ||
+      !productImage ||
+      !printArea ||
+      !artwork ||
+      !scaleInput ||
+      !editControls ||
+      !continueButton
+    ) {
+      console.warn("Personalize Preview print sides: customizer markup is incomplete.");
+      return;
+    }
+
     loadConfig(productId)
       .then((config) => {
         if (!config?.back?.enabled || !config.back.imageUrl) return;
-
-        const studio = customizer.querySelector("[data-pp-studio]");
-        const previewColumn = customizer.querySelector(".pp-studio-preview-column");
-        const productImage = customizer.querySelector(".pp-product-image");
-        const printArea = customizer.querySelector("[data-pp-print-area]");
-        const emptyState = customizer.querySelector("[data-pp-empty-state] span");
-        const artwork = customizer.querySelector("[data-pp-artwork]");
-        const scaleInput = customizer.querySelector("[data-pp-scale]");
-        const editControls = customizer.querySelector("[data-pp-edit-controls]");
-        const continueButton = customizer.querySelector("[data-pp-continue]");
-        const editDesignButton = customizer.querySelector("[data-pp-edit-design]");
-
-        if (
-          !studio ||
-          !previewColumn ||
-          !productImage ||
-          !printArea ||
-          !artwork ||
-          !scaleInput ||
-          !editControls ||
-          !continueButton
-        ) {
-          console.warn("Personalize Preview print sides: customizer markup is incomplete.");
-          return;
-        }
 
         const styles = window.getComputedStyle(customizer);
         const originalImage = productImage.currentSrc || productImage.src;
