@@ -264,7 +264,7 @@ export default function ProductionOrders() {
           <div style={cardStyle}>
             <div style={{ fontSize: 16, fontWeight: 750 }}>No personalized orders yet</div>
             <div style={{ marginTop: 6, color: "#63706a", fontSize: 13, lineHeight: 1.5 }}>
-              Complete a test personalized order and it will appear here. Shopify's standard read-orders access covers recent orders; the app does not load customer names or addresses on this page.
+              Complete a test personalized order and it will appear here. Standard Shopify read-orders access covers recent orders; the app does not load customer names or addresses on this page.
             </div>
           </div>
         ) : (
