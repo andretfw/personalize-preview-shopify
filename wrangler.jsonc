@@ -10,7 +10,7 @@
     "SESSION_STORAGE": "cloudflare-kv",
     "SHOPIFY_APP_URL": "https://personalize-preview-shopify.tfwandre.workers.dev",
     "SHOPIFY_API_KEY": "913c5aca61e254c4ffbb9c0b8dea2a65",
-    "SCOPES": "read_files,read_orders,write_app_proxy,write_files,write_products"
+    "SCOPES": "read_files,write_app_proxy,write_files,write_products"
   },
   "kv_namespaces": [
     {
