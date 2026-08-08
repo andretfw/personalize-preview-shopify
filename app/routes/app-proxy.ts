@@ -4,6 +4,7 @@ import { unauthenticated } from "../shopify.server";
 
 const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 const MEDIA_IMAGE_GID_PREFIX = "gid://shopify/MediaImage/";
+const PRODUCT_GID_PREFIX = "gid://shopify/Product/";
 const MAX_PROXY_REQUEST_AGE_SECONDS = 10 * 60;
 const SHOP_DOMAIN_PATTERN = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i;
 
@@ -32,6 +33,7 @@ type ProxyRequest = {
   fileSize?: unknown;
   resourceUrl?: unknown;
   fileId?: unknown;
+  productId?: unknown;
 };
 
 type StagedUploadData = {
@@ -65,6 +67,14 @@ type FileStatusData = {
   } | null;
 };
 
+type ProductConfigData = {
+  product?: {
+    id: string;
+    printWidthCm?: { value?: string | null } | null;
+    printHeightCm?: { value?: string | null } | null;
+  } | null;
+};
+
 type FailureCode =
   | "INVALID_PROXY_REQUEST"
   | "STORE_SESSION_UNAVAILABLE"
@@ -79,6 +89,8 @@ type FailureCode =
   | "SAVE_FILE_FAILED"
   | "INVALID_FILE_ID"
   | "FILE_STATUS_FAILED"
+  | "INVALID_PRODUCT_ID"
+  | "CONFIG_FAILED"
   | "UNKNOWN_ACTION";
 
 function json(payload: unknown, status = 200) {
@@ -103,6 +115,11 @@ function fail(error: string, code: FailureCode) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function positiveNumber(value: string | null | undefined) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function sanitizeFilename(filename: string) {
@@ -143,6 +160,10 @@ function publicFailureMessage(stage: string, error: unknown) {
 
   if (stage === "status") {
     return "Shopify could not finish processing the artwork.";
+  }
+
+  if (stage === "config") {
+    return "The product print-quality settings could not be loaded.";
   }
 
   return "The personalization service is temporarily unavailable.";
@@ -268,6 +289,35 @@ async function getFileStatus(admin: AdminClient, fileId: string) {
   };
 }
 
+async function getProductConfig(admin: AdminClient, productId: string) {
+  const data = await graphql<ProductConfigData>(
+    admin,
+    `#graphql
+      query PersonalizationProductConfig($id: ID!) {
+        product(id: $id) {
+          id
+          printWidthCm: metafield(namespace: "custom", key: "personalize_print_width_cm") {
+            value
+          }
+          printHeightCm: metafield(namespace: "custom", key: "personalize_print_height_cm") {
+            value
+          }
+        }
+      }
+    `,
+    { id: productId },
+  );
+
+  if (!data.product?.id) {
+    throw new Error("Shopify could not find the configured product.");
+  }
+
+  return {
+    printWidthCm: positiveNumber(data.product.printWidthCm?.value),
+    printHeightCm: positiveNumber(data.product.printHeightCm?.value),
+  };
+}
+
 /**
  * Health endpoint for the configured app-proxy destination.
  */
@@ -319,6 +369,20 @@ export async function action({ request }: { request: Request }) {
 
   try {
     switch (body.action) {
+      case "config": {
+        stage = "config";
+        const productId = stringValue(body.productId);
+
+        if (!productId.startsWith(PRODUCT_GID_PREFIX)) {
+          return fail("The Shopify product ID is invalid.", "INVALID_PRODUCT_ID");
+        }
+
+        return json({
+          ok: true,
+          config: await getProductConfig(admin, productId),
+        });
+      }
+
       case "prepare-upload": {
         stage = "prepare-upload";
 
@@ -514,7 +578,9 @@ export async function action({ request }: { request: Request }) {
           ? "SAVE_FILE_FAILED"
           : stage === "status"
             ? "FILE_STATUS_FAILED"
-            : "UNKNOWN_ACTION";
+            : stage === "config"
+              ? "CONFIG_FAILED"
+              : "UNKNOWN_ACTION";
 
     return fail(publicFailureMessage(stage, error), code);
   }
