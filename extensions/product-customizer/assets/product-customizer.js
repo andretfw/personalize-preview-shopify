@@ -13,12 +13,24 @@
 
   function findProductForm(customizer) {
     const section = getProductSection(customizer);
-    const forms = Array.from(
+    const localForms = Array.from(
       section.querySelectorAll('form[action*="/cart/add"]'),
     );
+    const pageForms = Array.from(
+      document.querySelectorAll('form[action*="/cart/add"]'),
+    );
+    const forms = [
+      ...localForms,
+      ...pageForms.filter((form) => !localForms.includes(form)),
+    ];
+
+    const hasVariantId = (form) => Boolean(form.querySelector('[name="id"]'));
+    const isVisible = (form) => form.getClientRects().length > 0;
 
     return (
-      forms.find((form) => form.querySelector('[name="id"]')) ||
+      forms.find((form) => hasVariantId(form) && isVisible(form)) ||
+      forms.find(hasVariantId) ||
+      forms.find(isVisible) ||
       forms[0] ||
       null
     );
