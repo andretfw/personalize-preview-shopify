@@ -29,6 +29,22 @@
   );
 
   document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape") return;
+
+      const savingStudio = document.querySelector(
+        ".pp-studio:not([hidden]):has([data-pp-confirm]:disabled)",
+      );
+      if (!savingStudio) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    true,
+  );
+
+  document.addEventListener(
     "submit",
     (event) => {
       const form = event.target;
