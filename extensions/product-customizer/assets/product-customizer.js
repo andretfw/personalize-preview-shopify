@@ -30,6 +30,9 @@
         .then(() =>
           import(getAssetScriptUrl("product-customizer-controller-v2.js")),
         )
+        .then(() =>
+          import(getAssetScriptUrl("product-customizer-empty-side-unlock.js")),
+        )
         .then(() => {
           loaded = true;
         })
