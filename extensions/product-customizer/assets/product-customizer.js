@@ -43,6 +43,11 @@
         )
         .then(() =>
           import(
+            getAssetScriptUrl("product-customizer-sides-layout.js")
+          ),
+        )
+        .then(() =>
+          import(
             getAssetScriptUrl("product-customizer-enhancements.js")
           ),
         )
