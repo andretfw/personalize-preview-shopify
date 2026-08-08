@@ -102,6 +102,13 @@ const valuesFromProduct = (product: ProductSetup | null): SetupValues =>
       }
     : DEFAULTS;
 
+const setupValuesEqual = (left: SetupValues, right: SetupValues) =>
+  left.enabled === right.enabled &&
+  left.left === right.left &&
+  left.top === right.top &&
+  left.width === right.width &&
+  left.height === right.height;
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
@@ -349,6 +356,8 @@ export default function PersonalizeDashboard() {
   const saveSequenceRef = useRef(0);
   const handledSaveSequenceRef = useRef(0);
   const isSaving = fetcher.state !== "idle";
+  const savedValues = valuesFromProduct(selectedProduct);
+  const hasUnsavedChanges = !setupValuesEqual(values, savedValues);
 
   useEffect(() => {
     if (!selectedProduct) return;
@@ -471,7 +480,7 @@ export default function PersonalizeDashboard() {
   };
 
   const saveSettings = () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || !hasUnsavedChanges || isSaving) return;
 
     saveSequenceRef.current += 1;
 
@@ -505,14 +514,21 @@ export default function PersonalizeDashboard() {
     ["height", "Height %"],
   ] as const;
 
+  const saveLabel = isSaving
+    ? "Saving…"
+    : hasUnsavedChanges
+      ? "Save product setup"
+      : "Saved ✓";
+
   return (
     <s-page heading="Personalize Preview">
       <s-button
         slot="primary-action"
         onClick={saveSettings}
+        disabled={!hasUnsavedChanges || isSaving}
         {...(isSaving ? { loading: true } : {})}
       >
-        Save product setup
+        {saveLabel}
       </s-button>
 
       <s-section heading="Choose a product">
@@ -744,19 +760,23 @@ export default function PersonalizeDashboard() {
             <button
               type="button"
               onClick={saveSettings}
-              disabled={isSaving}
+              disabled={!hasUnsavedChanges || isSaving}
               style={{
                 minHeight: 46,
                 border: 0,
                 borderRadius: 12,
-                background: "#111",
-                color: "white",
+                background: hasUnsavedChanges ? "#111" : "#e8f5ee",
+                color: hasUnsavedChanges ? "white" : "#005c45",
                 fontSize: 15,
                 fontWeight: 750,
-                cursor: isSaving ? "wait" : "pointer",
+                cursor: isSaving
+                  ? "wait"
+                  : hasUnsavedChanges
+                    ? "pointer"
+                    : "default",
               }}
             >
-              {isSaving ? "Saving…" : "Save product setup"}
+              {saveLabel}
             </button>
 
             {fetcher.data && !fetcher.data.ok && (
