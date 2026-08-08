@@ -67,11 +67,32 @@ type FileStatusData = {
   } | null;
 };
 
+type MetafieldValue = { value?: string | null } | null;
+
+type MediaNode = {
+  id: string;
+  image?: { url?: string | null; altText?: string | null } | null;
+};
+
 type ProductConfigData = {
   product?: {
     id: string;
-    printWidthCm?: { value?: string | null } | null;
-    printHeightCm?: { value?: string | null } | null;
+    featuredMedia?: {
+      preview?: {
+        image?: { url?: string | null; altText?: string | null } | null;
+      } | null;
+    } | null;
+    media?: { nodes?: MediaNode[] } | null;
+    printWidthCm?: MetafieldValue;
+    printHeightCm?: MetafieldValue;
+    backEnabled?: MetafieldValue;
+    backMediaId?: MetafieldValue;
+    backLeft?: MetafieldValue;
+    backTop?: MetafieldValue;
+    backWidth?: MetafieldValue;
+    backHeight?: MetafieldValue;
+    backPrintWidthCm?: MetafieldValue;
+    backPrintHeightCm?: MetafieldValue;
   } | null;
 };
 
@@ -120,6 +141,11 @@ function stringValue(value: unknown) {
 function positiveNumber(value: string | null | undefined) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function numberOr(value: string | null | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function sanitizeFilename(filename: string) {
@@ -296,25 +322,77 @@ async function getProductConfig(admin: AdminClient, productId: string) {
       query PersonalizationProductConfig($id: ID!) {
         product(id: $id) {
           id
+          featuredMedia {
+            preview { image { url altText } }
+          }
+          media(first: 10, query: "media_type:IMAGE", sortKey: POSITION) {
+            nodes {
+              ... on MediaImage {
+                id
+                image { url altText }
+              }
+            }
+          }
           printWidthCm: metafield(namespace: "custom", key: "personalize_print_width_cm") {
             value
           }
           printHeightCm: metafield(namespace: "custom", key: "personalize_print_height_cm") {
             value
           }
+          backEnabled: metafield(namespace: "custom", key: "personalize_back_enabled") { value }
+          backMediaId: metafield(namespace: "custom", key: "personalize_back_media_id") { value }
+          backLeft: metafield(namespace: "custom", key: "personalize_back_left") { value }
+          backTop: metafield(namespace: "custom", key: "personalize_back_top") { value }
+          backWidth: metafield(namespace: "custom", key: "personalize_back_width") { value }
+          backHeight: metafield(namespace: "custom", key: "personalize_back_height") { value }
+          backPrintWidthCm: metafield(namespace: "custom", key: "personalize_back_print_width_cm") { value }
+          backPrintHeightCm: metafield(namespace: "custom", key: "personalize_back_print_height_cm") { value }
         }
       }
     `,
     { id: productId },
   );
 
-  if (!data.product?.id) {
+  const product = data.product;
+
+  if (!product?.id) {
     throw new Error("Shopify could not find the configured product.");
   }
 
+  const printWidthCm = positiveNumber(product.printWidthCm?.value);
+  const printHeightCm = positiveNumber(product.printHeightCm?.value);
+  const media = product.media?.nodes ?? [];
+  const savedBackMediaId = product.backMediaId?.value || "";
+  const backMedia =
+    media.find((item) => item.id === savedBackMediaId) ||
+    media[1] ||
+    media[0] ||
+    null;
+  const frontImage =
+    product.featuredMedia?.preview?.image?.url || media[0]?.image?.url || "";
+
   return {
-    printWidthCm: positiveNumber(data.product.printWidthCm?.value),
-    printHeightCm: positiveNumber(data.product.printHeightCm?.value),
+    // Keep these top-level fields for the existing Quality Guard and print-size bridge.
+    printWidthCm,
+    printHeightCm,
+    front: {
+      label: "Front",
+      imageUrl: frontImage,
+      printWidthCm,
+      printHeightCm,
+    },
+    back: {
+      enabled:
+        product.backEnabled?.value === "true" && Boolean(backMedia?.image?.url),
+      label: "Back",
+      imageUrl: backMedia?.image?.url || "",
+      left: numberOr(product.backLeft?.value, 35),
+      top: numberOr(product.backTop?.value, 22),
+      width: numberOr(product.backWidth?.value, 30),
+      height: numberOr(product.backHeight?.value, 45),
+      printWidthCm: positiveNumber(product.backPrintWidthCm?.value),
+      printHeightCm: positiveNumber(product.backPrintHeightCm?.value),
+    },
   };
 }
 
