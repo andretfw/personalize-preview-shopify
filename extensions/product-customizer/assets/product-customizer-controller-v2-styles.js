@@ -52,11 +52,13 @@
     .pp-studio:has([data-pp-confirm]:disabled) .pp-control-section,
     .pp-studio:has([data-pp-confirm]:disabled) .pp-print-side-tabs,
     .pp-studio:has([data-pp-confirm]:disabled) .pp-artwork,
-    .pp-studio:has([data-pp-confirm]:disabled) .pp-text-layer {
+    .pp-studio:has([data-pp-confirm]:disabled) .pp-text-layer,
+    .pp-studio:has([data-pp-confirm]:disabled) [data-pp-close-studio] {
       pointer-events: none;
     }
     .pp-studio:has([data-pp-confirm]:disabled) .pp-control-section,
-    .pp-studio:has([data-pp-confirm]:disabled) .pp-print-side-tabs {
+    .pp-studio:has([data-pp-confirm]:disabled) .pp-print-side-tabs,
+    .pp-studio:has([data-pp-confirm]:disabled) .pp-close-studio-button {
       opacity: .58;
     }
   `;
