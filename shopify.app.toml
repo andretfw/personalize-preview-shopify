@@ -11,7 +11,7 @@ automatically_update_urls_on_dev = true
 include_config_on_deploy = true
 
 [access_scopes]
-scopes = "read_files,write_app_proxy,write_files,write_products"
+scopes = "read_files,read_orders,write_app_proxy,write_files,write_products"
 
 [auth]
 redirect_urls = ["https://personalize-preview-shopify.tfwandre.workers.dev/auth/callback"]
