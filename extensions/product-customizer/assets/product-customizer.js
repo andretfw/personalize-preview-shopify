@@ -30,9 +30,6 @@
         .then(() =>
           import(getAssetScriptUrl("product-customizer-controller-v2.js")),
         )
-        .then(() =>
-          import(getAssetScriptUrl("product-customizer-dual-preview.js")),
-        )
         .then(() => {
           loaded = true;
         })
