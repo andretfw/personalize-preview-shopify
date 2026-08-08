@@ -30,6 +30,7 @@ type OrderNode = {
 
 type ProductionJob = {
   id: string;
+  side: string;
   orderName: string;
   orderUrl: string;
   createdAt: string;
@@ -39,14 +40,11 @@ type ProductionJob = {
   variantTitle: string;
   quantity: number;
   sku: string;
-  imageUrl: string;
-  imageAlt: string;
   artworkUrl: string;
   artworkFile: string;
   proofUrl: string;
   quality: string;
   printSize: string;
-  printSizeSource: "order" | "";
   customText: string;
   placement: string;
   confirmed: boolean;
@@ -76,6 +74,7 @@ const formatPlacement = (raw: string) => {
         height?: string | number;
       };
     };
+
     const parts: string[] = [];
     if (Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
       parts.push(
@@ -87,9 +86,7 @@ const formatPlacement = (raw: string) => {
     }
     if (parsed.area) {
       const clean = (value: string | number | undefined) =>
-        String(value ?? "")
-          .trim()
-          .replace(/%$/, "");
+        String(value ?? "").trim().replace(/%$/, "");
       const left = clean(parsed.area.left);
       const top = clean(parsed.area.top);
       const width = clean(parsed.area.width);
@@ -129,6 +126,15 @@ const emptyResult = (
   orderAccessError,
 });
 
+const sideHasData = (properties: Record<string, string>, side: string) =>
+  Boolean(
+    properties[`_${side} artwork preview`] ||
+      properties[`_${side} approved proof`] ||
+      properties[`${side} text`] ||
+      properties[`_${side} artwork placement`] ||
+      properties[`_${side} print size`],
+  );
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { scopes } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -161,9 +167,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  if (!orderAccessGranted) {
-    return emptyResult(false);
-  }
+  if (!orderAccessGranted) return emptyResult(false);
 
   try {
     const response = await admin.graphql(
@@ -210,28 +214,73 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const jobs: ProductionJob[] = [];
 
     for (const order of json.data?.orders?.nodes ?? []) {
+      const orderNumericId = order.id.split("/").pop() || "";
+      const orderUrl = orderNumericId
+        ? `https://${session.shop}/admin/orders/${orderNumericId}`
+        : `https://${session.shop}/admin/orders`;
+
       for (const line of order.lineItems?.nodes ?? []) {
         const properties = attributeMap(line.customAttributes ?? []);
+        const confirmed = properties["_Design confirmed"] === "Yes";
+        const sideLabels = ["Front", "Back"].filter((side) =>
+          sideHasData(properties, side),
+        );
+
+        if (sideLabels.length > 0) {
+          for (const side of sideLabels) {
+            const artworkUrl = properties[`_${side} artwork preview`] || "";
+            const proofUrl = properties[`_${side} approved proof`] || "";
+            const customText = properties[`${side} text`] || "";
+
+            jobs.push({
+              id: `${order.id}-${line.id}-${side.toLowerCase()}`,
+              side,
+              orderName: order.name,
+              orderUrl,
+              createdAt: order.createdAt,
+              financialStatus: humanStatus(order.displayFinancialStatus),
+              fulfillmentStatus: humanStatus(order.displayFulfillmentStatus),
+              productTitle: line.title || line.name,
+              variantTitle: line.variantTitle || "",
+              quantity: line.quantity,
+              sku: line.sku || "",
+              artworkUrl,
+              artworkFile: properties[`_${side} artwork file`] || "Customer artwork",
+              proofUrl,
+              quality: properties[`_${side} print quality`] || "Not measured",
+              printSize:
+                properties[`_${side} print size`] || "Not recorded on this order",
+              customText,
+              placement: formatPlacement(
+                properties[`_${side} artwork placement`] || "",
+              ),
+              confirmed,
+              ready: Boolean(confirmed && proofUrl && (artworkUrl || customText)),
+            });
+          }
+          continue;
+        }
+
         const personalized =
           properties["_Personalized"] === "Yes" ||
-          properties["_Design confirmed"] === "Yes" ||
+          confirmed ||
           Boolean(
-            properties["_Artwork preview"] || properties["_Approved design proof"],
+            properties["_Artwork preview"] ||
+              properties["_Approved design proof"] ||
+              properties["Custom text"],
           );
 
         if (!personalized) continue;
 
         const artworkUrl = properties["_Artwork preview"] || "";
         const proofUrl = properties["_Approved design proof"] || "";
-        const confirmed = properties["_Design confirmed"] === "Yes";
-        const orderNumericId = order.id.split("/").pop() || "";
+        const customText = properties["Custom text"] || "";
 
         jobs.push({
           id: `${order.id}-${line.id}`,
+          side: properties["_Print side"] || "",
           orderName: order.name,
-          orderUrl: orderNumericId
-            ? `https://${session.shop}/admin/orders/${orderNumericId}`
-            : `https://${session.shop}/admin/orders`,
+          orderUrl,
           createdAt: order.createdAt,
           financialStatus: humanStatus(order.displayFinancialStatus),
           fulfillmentStatus: humanStatus(order.displayFulfillmentStatus),
@@ -239,18 +288,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           variantTitle: line.variantTitle || "",
           quantity: line.quantity,
           sku: line.sku || "",
-          imageUrl: "",
-          imageAlt: line.title || "Product image",
           artworkUrl,
           artworkFile: properties["_Artwork file"] || "Customer artwork",
           proofUrl,
           quality: properties["_Print quality"] || "Not measured",
           printSize: properties["_Print size"] || "Not recorded on this order",
-          printSizeSource: properties["_Print size"] ? "order" : "",
-          customText: properties["Custom text"] || "",
+          customText,
           placement: formatPlacement(properties["_Artwork placement"] || ""),
           confirmed,
-          ready: Boolean(confirmed && artworkUrl && proofUrl),
+          ready: Boolean(confirmed && proofUrl && (artworkUrl || customText)),
         });
       }
     }
@@ -306,31 +352,13 @@ export default function ProductionOrders() {
             <div style={{ fontSize: 18, fontWeight: 780, color: "#17231e" }}>
               Allow order access
             </div>
-            <div
-              style={{
-                marginTop: 7,
-                color: "#596761",
-                fontSize: 13,
-                lineHeight: 1.55,
-              }}
-            >
+            <div style={{ marginTop: 7, color: "#596761", fontSize: 13, lineHeight: 1.55 }}>
               Personalize Preview needs read-only access to recent Shopify orders
-              to build your production desk. We use it only to find personalized
-              line items and their artwork, proof, print quality, and placement.
-              Customer names and addresses are not loaded on this page.
+              to build your production desk. Customer names and addresses are not
+              loaded on this page.
             </div>
             {orderAccessError ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 12,
-                  borderRadius: 9,
-                  background: "#fff4df",
-                  color: "#7b5200",
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                }}
-              >
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 9, background: "#fff4df", color: "#7b5200", fontSize: 12 }}>
                 {orderAccessError}
               </div>
             ) : null}
@@ -339,20 +367,9 @@ export default function ProductionOrders() {
               <button
                 type="submit"
                 disabled={accessFetcher.state !== "idle"}
-                style={{
-                  border: 0,
-                  borderRadius: 9,
-                  padding: "11px 15px",
-                  background: "#111",
-                  color: "#fff",
-                  fontSize: 13,
-                  fontWeight: 750,
-                  cursor: "pointer",
-                }}
+                style={{ border: 0, borderRadius: 9, padding: "11px 15px", background: "#111", color: "#fff", fontSize: 13, fontWeight: 750, cursor: "pointer" }}
               >
-                {accessFetcher.state === "idle"
-                  ? "Allow order access"
-                  : "Opening Shopify permissions…"}
+                {accessFetcher.state === "idle" ? "Allow order access" : "Opening Shopify permissions…"}
               </button>
             </accessFetcher.Form>
           </div>
@@ -365,297 +382,95 @@ export default function ProductionOrders() {
     <s-page heading="Production orders">
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 20px 32px" }}>
         <div style={{ ...cardStyle, marginBottom: 16, background: "#f7faf8" }}>
-          <div style={{ fontSize: 18, fontWeight: 780, color: "#17231e" }}>
-            Production desk
+          <div style={{ fontSize: 18, fontWeight: 780, color: "#17231e" }}>Production desk</div>
+          <div style={{ marginTop: 5, color: "#596761", fontSize: 13, lineHeight: 1.5 }}>
+            Each personalized print side is shown as its own production job with
+            the exact artwork, approved proof, print size, DPI and placement.
           </div>
-          <div
-            style={{
-              marginTop: 5,
-              color: "#596761",
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}
-          >
-            Recent personalized line items from Shopify orders. Original artwork
-            and the customer-approved proof stay in Shopify Files; this page brings
-            the production details together in one place.
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              marginTop: 12,
-            }}
-          >
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                background: "#e9f2ed",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            <span style={{ padding: "6px 10px", borderRadius: 999, background: "#e9f2ed", fontSize: 12, fontWeight: 700 }}>
               {jobs.length} personalized job{jobs.length === 1 ? "" : "s"}
             </span>
-            <span
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                background: "#edf8f2",
-                color: "#006e52",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
+            <span style={{ padding: "6px 10px", borderRadius: 999, background: "#edf8f2", color: "#006e52", fontSize: 12, fontWeight: 700 }}>
               {readyCount} ready to produce
             </span>
           </div>
         </div>
 
         {orderAccessError ? (
-          <div
-            style={{
-              ...cardStyle,
-              marginBottom: 16,
-              borderColor: "#efd0cb",
-              background: "#fff7f5",
-            }}
-          >
-            <div style={{ fontSize: 15, fontWeight: 760, color: "#8c2d23" }}>
-              Shopify could not load orders
-            </div>
-            <div
-              style={{
-                marginTop: 6,
-                color: "#704b45",
-                fontSize: 13,
-                lineHeight: 1.5,
-              }}
-            >
-              {orderAccessError}
-            </div>
+          <div style={{ ...cardStyle, marginBottom: 16, borderColor: "#efd0cb", background: "#fff7f5" }}>
+            <div style={{ fontSize: 15, fontWeight: 760, color: "#8c2d23" }}>Shopify could not load orders</div>
+            <div style={{ marginTop: 6, color: "#704b45", fontSize: 13 }}>{orderAccessError}</div>
           </div>
         ) : jobs.length === 0 ? (
           <div style={cardStyle}>
-            <div style={{ fontSize: 16, fontWeight: 750 }}>
-              No personalized orders yet
-            </div>
-            <div
-              style={{
-                marginTop: 6,
-                color: "#63706a",
-                fontSize: 13,
-                lineHeight: 1.5,
-              }}
-            >
-              Complete a test personalized order and it will appear here. Standard
-              Shopify read-orders access covers recent orders; the app does not load
-              customer names or addresses on this page.
+            <div style={{ fontSize: 16, fontWeight: 750 }}>No personalized orders yet</div>
+            <div style={{ marginTop: 6, color: "#63706a", fontSize: 13 }}>
+              Complete a test personalized order and it will appear here.
             </div>
           </div>
         ) : (
           <div style={{ display: "grid", gap: 14 }}>
             {jobs.map((job) => (
               <div key={job.id} style={cardStyle}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: 16,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 13, minWidth: 0 }}>
-                    {job.imageUrl ? (
-                      <img
-                        src={job.imageUrl}
-                        alt={job.imageAlt}
-                        width={64}
-                        height={64}
-                        style={{
-                          width: 64,
-                          height: 64,
-                          borderRadius: 10,
-                          objectFit: "cover",
-                          border: "1px solid #e3e7e5",
-                        }}
-                      />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <a href={job.orderUrl} target="_top" style={{ color: "#111", fontSize: 15, fontWeight: 800, textDecoration: "none" }}>
+                      {job.orderName}
+                    </a>
+                    <div style={{ marginTop: 3, fontSize: 15, fontWeight: 700, color: "#29332f" }}>
+                      {job.productTitle}
+                    </div>
+                    {job.side ? (
+                      <div style={{ marginTop: 5, display: "inline-block", padding: "4px 8px", borderRadius: 999, background: "#f1f3f2", color: "#43504a", fontSize: 11, fontWeight: 750 }}>
+                        {job.side} side
+                      </div>
                     ) : null}
-                    <div style={{ minWidth: 0 }}>
-                      <a
-                        href={job.orderUrl}
-                        target="_top"
-                        style={{
-                          color: "#111",
-                          fontSize: 15,
-                          fontWeight: 800,
-                          textDecoration: "none",
-                        }}
-                      >
-                        {job.orderName}
-                      </a>
-                      <div
-                        style={{
-                          marginTop: 3,
-                          fontSize: 15,
-                          fontWeight: 700,
-                          color: "#29332f",
-                        }}
-                      >
-                        {job.productTitle}
-                      </div>
-                      <div
-                        style={{ marginTop: 3, fontSize: 12, color: "#68756f" }}
-                      >
-                        {job.variantTitle ? `${job.variantTitle} · ` : ""}Qty{" "}
-                        {job.quantity}
-                        {job.sku ? ` · SKU ${job.sku}` : ""}
-                      </div>
-                      <div
-                        style={{ marginTop: 3, fontSize: 12, color: "#89928e" }}
-                      >
-                        {new Date(job.createdAt).toLocaleString()}
-                      </div>
+                    <div style={{ marginTop: 5, fontSize: 12, color: "#68756f" }}>
+                      {job.variantTitle ? `${job.variantTitle} · ` : ""}Qty {job.quantity}
+                      {job.sku ? ` · SKU ${job.sku}` : ""}
+                    </div>
+                    <div style={{ marginTop: 3, fontSize: 12, color: "#89928e" }}>
+                      {new Date(job.createdAt).toLocaleString()}
                     </div>
                   </div>
 
-                  <span
-                    style={{
-                      padding: "7px 10px",
-                      borderRadius: 999,
-                      background: job.ready ? "#eaf8f1" : "#fff4df",
-                      color: job.ready ? "#006e52" : "#7b5200",
-                      fontSize: 12,
-                      fontWeight: 800,
-                    }}
-                  >
+                  <span style={{ padding: "7px 10px", borderRadius: 999, background: job.ready ? "#eaf8f1" : "#fff4df", color: job.ready ? "#006e52" : "#7b5200", fontSize: 12, fontWeight: 800 }}>
                     {job.ready ? "Ready to produce" : "Needs review"}
                   </span>
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                    gap: 14,
-                    marginTop: 18,
-                    paddingTop: 16,
-                    borderTop: "1px solid #edf0ee",
-                  }}
-                >
-                  <div>
-                    <div style={labelStyle}>Print size</div>
-                    <div style={valueStyle}>{job.printSize}</div>
-                  </div>
-                  <div>
-                    <div style={labelStyle}>Print quality</div>
-                    <div style={valueStyle}>{job.quality}</div>
-                  </div>
-                  <div>
-                    <div style={labelStyle}>Design</div>
-                    <div style={valueStyle}>
-                      {job.confirmed ? "Customer confirmed" : "Confirmation missing"}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={labelStyle}>Shopify status</div>
-                    <div style={valueStyle}>
-                      {job.financialStatus} · {job.fulfillmentStatus}
-                    </div>
-                  </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 18, paddingTop: 16, borderTop: "1px solid #edf0ee" }}>
+                  <div><div style={labelStyle}>Print size</div><div style={valueStyle}>{job.printSize}</div></div>
+                  <div><div style={labelStyle}>Print quality</div><div style={valueStyle}>{job.quality}</div></div>
+                  <div><div style={labelStyle}>Design</div><div style={valueStyle}>{job.confirmed ? "Customer confirmed" : "Confirmation missing"}</div></div>
+                  <div><div style={labelStyle}>Shopify status</div><div style={valueStyle}>{job.financialStatus} · {job.fulfillmentStatus}</div></div>
                   {job.customText ? (
-                    <div>
-                      <div style={labelStyle}>Custom text</div>
-                      <div style={valueStyle}>{job.customText}</div>
-                    </div>
+                    <div><div style={labelStyle}>Custom text</div><div style={valueStyle}>{job.customText}</div></div>
                   ) : null}
-                  <div style={{ gridColumn: "span 2" }}>
-                    <div style={labelStyle}>Artwork placement</div>
-                    <div style={valueStyle}>{job.placement}</div>
-                  </div>
+                  <div style={{ gridColumn: "span 2" }}><div style={labelStyle}>Artwork placement</div><div style={valueStyle}>{job.placement}</div></div>
                 </div>
 
-                <div
-                  style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}
-                >
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
                   {job.artworkUrl ? (
-                    <a
-                      href={job.artworkUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        padding: "9px 12px",
-                        borderRadius: 9,
-                        background: "#111",
-                        color: "#fff",
-                        textDecoration: "none",
-                        fontSize: 12,
-                        fontWeight: 750,
-                      }}
-                    >
+                    <a href={job.artworkUrl} target="_blank" rel="noreferrer" style={{ padding: "9px 12px", borderRadius: 9, background: "#111", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 750 }}>
                       Download original artwork
                     </a>
                   ) : (
-                    <span
-                      style={{
-                        padding: "9px 12px",
-                        borderRadius: 9,
-                        background: "#f3f4f3",
-                        color: "#7b8580",
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      Original artwork missing
+                    <span style={{ padding: "9px 12px", borderRadius: 9, background: "#f3f4f3", color: "#7b8580", fontSize: 12, fontWeight: 700 }}>
+                      No original artwork
                     </span>
                   )}
                   {job.proofUrl ? (
-                    <a
-                      href={job.proofUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        padding: "9px 12px",
-                        borderRadius: 9,
-                        border: "1px solid #cdd5d1",
-                        color: "#26312c",
-                        textDecoration: "none",
-                        fontSize: 12,
-                        fontWeight: 750,
-                      }}
-                    >
+                    <a href={job.proofUrl} target="_blank" rel="noreferrer" style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #cdd5d1", color: "#26312c", textDecoration: "none", fontSize: 12, fontWeight: 750 }}>
                       Download approved proof
                     </a>
                   ) : (
-                    <span
-                      style={{
-                        padding: "9px 12px",
-                        borderRadius: 9,
-                        background: "#fff4df",
-                        color: "#7b5200",
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
+                    <span style={{ padding: "9px 12px", borderRadius: 9, background: "#fff4df", color: "#7b5200", fontSize: 12, fontWeight: 700 }}>
                       Approved proof missing
                     </span>
                   )}
-                  <a
-                    href={job.orderUrl}
-                    target="_top"
-                    style={{
-                      padding: "9px 12px",
-                      borderRadius: 9,
-                      border: "1px solid #d8deda",
-                      color: "#52605a",
-                      textDecoration: "none",
-                      fontSize: 12,
-                      fontWeight: 700,
-                    }}
-                  >
+                  <a href={job.orderUrl} target="_top" style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #d8deda", color: "#52605a", textDecoration: "none", fontSize: 12, fontWeight: 700 }}>
                     Open Shopify order
                   </a>
                 </div>
