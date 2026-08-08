@@ -30,6 +30,7 @@ export default function App() {
         <s-link href="/app">Home</s-link>
         <s-link href="/app/orders">Orders</s-link>
         <s-link href="/app/production">Production</s-link>
+        <s-link href="/app/sides">Print sides</s-link>
         <s-link href="/app/bulk">Bulk setup</s-link>
       </s-app-nav>
 
@@ -81,7 +82,7 @@ export default function App() {
                 Add customizer to product template
               </a>
               <span style={{ color: "#5d6a65", fontSize: 12 }}>
-                Already added it? Continue with product setup below. Production settings are optional.
+                Already added it? Continue with product setup below. Production settings and a Back side are optional.
               </span>
             </div>
           </div>
