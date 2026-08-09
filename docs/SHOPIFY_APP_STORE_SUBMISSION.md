@@ -8,7 +8,7 @@ The public app name is locked as **LivePrint Preview**. Internal technical ident
 
 ## Recommended launch pricing
 
-### Starter — $9.99/month
+### Starter — $5.99/month
 
 - 14-day free trial
 - Unlimited personalized products
@@ -19,7 +19,7 @@ The public app name is locked as **LivePrint Preview**. Internal technical ident
 - Confirmed artwork saved in Shopify Files
 - Customization details attached to cart/order data
 
-Why this price: comparable Shopify product-personalization apps commonly start around $9-$10/month for live preview and file upload. A single launch plan avoids unnecessary feature gating in v1 and keeps merchant onboarding simple.
+Why this price: $5.99 keeps the first public plan easy to try for merchants while LivePrint Preview is new and building its first reviews, and it remains competitive with newer live-preview personalization apps. A single launch plan avoids unnecessary feature gating in v1 and keeps merchant onboarding simple.
 
 Use **Shopify App Pricing** in the Partner Dashboard. Set the welcome link to `/app`.
 
@@ -185,7 +185,7 @@ Keep the video focused on setup and expected results and avoid showing private c
 - [x] Real monitored support email selected: fruttataco@gmail.com
 - [x] Public Support, Privacy, and Terms pages include the support email
 - [ ] Support email entered in the Shopify App Store listing
-- [ ] Shopify App Pricing plan created in Partner Dashboard
+- [ ] Shopify App Pricing plan created in Partner Dashboard at $5.99/month with a 14-day free trial
 - [x] Latest app version deployed with `shopify app deploy` (LivePrint Preview v33)
 - [ ] Production environment variables/secrets verified
 - [ ] Fresh-store end-to-end test completed
