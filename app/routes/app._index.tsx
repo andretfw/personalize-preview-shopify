@@ -115,7 +115,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const response = await admin.graphql(
     `#graphql
       query PersonalizePreviewProducts {
-        products(first: 100, sortKey: TITLE) {
+        products(first: 100, sortKey: TITLE, query: "tag_not:personalize-preview-internal") {
           nodes {
             id
             title

@@ -12,7 +12,7 @@ include_config_on_deploy = true
 
 [access_scopes]
 scopes = "read_files,write_app_proxy,write_files,write_products"
-optional_scopes = ["read_orders"]
+optional_scopes = ["read_orders", "read_publications", "write_publications"]
 
 [auth]
 redirect_urls = ["https://personalize-preview-shopify.tfwandre.workers.dev/auth/callback"]
