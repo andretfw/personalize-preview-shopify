@@ -390,8 +390,8 @@ async function getProductConfig(admin: AdminClient, productId: string) {
       top: numberOr(product.backTop?.value, 22),
       width: numberOr(product.backWidth?.value, 30),
       height: numberOr(product.backHeight?.value, 45),
-      printWidthCm: positiveNumber(product.backPrintWidthCm?.value),
-      printHeightCm: positiveNumber(product.backPrintHeightCm?.value),
+      printWidthCm: positiveNumber(product.backPrintWidthCm?.value) || printWidthCm,
+      printHeightCm: positiveNumber(product.backPrintHeightCm?.value) || printHeightCm,
     },
   };
 }
