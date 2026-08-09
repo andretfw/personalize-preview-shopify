@@ -1,0 +1,66 @@
+query CartTransformRunInput {
+  presentmentCurrencyRate
+  cart {
+    lines {
+      id
+      quantity
+      cost {
+        amountPerQuantity {
+          amount
+        }
+      }
+      personalized: attribute(key: "_Personalized") { value }
+      designConfirmed: attribute(key: "_Design confirmed") { value }
+      personalizedSides: attribute(key: "_Personalized sides") { value }
+      printSides: attribute(key: "Print sides") { value }
+
+      frontArtworkPreview: attribute(key: "_Front artwork preview") { value }
+      frontArtworkFile: attribute(key: "_Front artwork file") { value }
+      frontShopifyFileId: attribute(key: "_Front Shopify file ID") { value }
+      frontApprovedProof: attribute(key: "_Front approved proof") { value }
+      frontPrintQuality: attribute(key: "_Front print quality") { value }
+      frontPrintSize: attribute(key: "_Front print size") { value }
+      frontArtworkPlacement: attribute(key: "_Front artwork placement") { value }
+      frontTextCustomization: attribute(key: "_Front text customization") { value }
+      frontText: attribute(key: "Front text") { value }
+
+      backArtworkPreview: attribute(key: "_Back artwork preview") { value }
+      backArtworkFile: attribute(key: "_Back artwork file") { value }
+      backShopifyFileId: attribute(key: "_Back Shopify file ID") { value }
+      backApprovedProof: attribute(key: "_Back approved proof") { value }
+      backPrintQuality: attribute(key: "_Back print quality") { value }
+      backPrintSize: attribute(key: "_Back print size") { value }
+      backArtworkPlacement: attribute(key: "_Back artwork placement") { value }
+      backTextCustomization: attribute(key: "_Back text customization") { value }
+      backText: attribute(key: "Back text") { value }
+
+      artworkPreview: attribute(key: "_Artwork preview") { value }
+      artworkFile: attribute(key: "_Artwork file") { value }
+      shopifyFileId: attribute(key: "_Shopify file ID") { value }
+      approvedDesignProof: attribute(key: "_Approved design proof") { value }
+      artworkPlacement: attribute(key: "_Artwork placement") { value }
+      textCustomization: attribute(key: "_Text customization") { value }
+      customText: attribute(key: "Custom text") { value }
+      printQuality: attribute(key: "_Print quality") { value }
+      printSize: attribute(key: "_Print size") { value }
+      printSide: attribute(key: "_Print side") { value }
+
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          title
+          product {
+            title
+            backSurcharge: metafield(namespace: "custom", key: "personalize_back_surcharge") {
+              value
+            }
+            backFeeVariantId: metafield(namespace: "custom", key: "personalize_back_fee_variant_id") {
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+}
