@@ -83,9 +83,9 @@ export default function TermsOfService() {
         <section className={styles.section}>
           <h2>Support</h2>
           <p>
-            For product or account support, use the support contact provided on the
-            LivePrint Preview Shopify App Store listing or visit the public support
-            page linked below.
+            For product or account support, email{" "}
+            <a href="mailto:fruttataco@gmail.com">fruttataco@gmail.com</a> or visit the
+            public support page linked below.
           </p>
         </section>
 
