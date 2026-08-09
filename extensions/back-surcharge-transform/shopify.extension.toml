@@ -1,0 +1,17 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "Back personalization pricing"
+handle = "personalize-back-surcharge"
+uid = "31a7401d-ae2b-375b-b661-2ba0aad6dac942858191"
+type = "function"
+description = "Enforces paid Back-side personalization as a mandatory cart component."
+
+  [[extensions.targeting]]
+  target = "cart.transform.run"
+  input_query = "src/cart_transform_run.graphql"
+  export = "cart-transform-run"
+
+  [extensions.build]
+  command = ""
+  path = "dist/function.wasm"
