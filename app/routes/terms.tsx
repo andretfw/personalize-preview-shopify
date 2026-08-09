@@ -4,13 +4,13 @@ export default function TermsOfService() {
   return (
     <main className={styles.page}>
       <article className={styles.shell}>
-        <p className={styles.eyebrow}>Personalize Preview</p>
+        <p className={styles.eyebrow}>LivePrint Preview</p>
         <h1 className={styles.title}>Terms of Service</h1>
         <p className={styles.updated}>Last updated: August 8, 2026</p>
 
         <section className={styles.section}>
           <p>
-            These Terms govern a Shopify merchant&apos;s use of Personalize Preview. By
+            These Terms govern a Shopify merchant&apos;s use of LivePrint Preview. By
             installing or using the app, the merchant agrees to use it in accordance
             with these Terms and Shopify&apos;s applicable terms and policies.
           </p>
@@ -19,7 +19,7 @@ export default function TermsOfService() {
         <section className={styles.section}>
           <h2>What the app provides</h2>
           <p>
-            Personalize Preview lets merchants enable personalization on selected
+            LivePrint Preview lets merchants enable personalization on selected
             products, configure printable areas, and let shoppers upload artwork, add
             text, preview a design, and attach confirmed customization details to a
             Shopify cart and order.
@@ -46,7 +46,7 @@ export default function TermsOfService() {
           <h2>Customer content</h2>
           <p>
             The merchant remains responsible for deciding whether customer-submitted
-            artwork and text can be accepted or fulfilled. Personalize Preview does not
+            artwork and text can be accepted or fulfilled. LivePrint Preview does not
             grant intellectual-property rights in customer content and does not certify
             that uploaded content is suitable for production.
           </p>
@@ -84,7 +84,7 @@ export default function TermsOfService() {
           <h2>Support</h2>
           <p>
             For product or account support, use the support contact provided on the
-            Personalize Preview Shopify App Store listing or visit the public support
+            LivePrint Preview Shopify App Store listing or visit the public support
             page linked below.
           </p>
         </section>
