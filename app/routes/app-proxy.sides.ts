@@ -205,14 +205,20 @@ export async function action({ request }: { request: Request }) {
       media.find((item) => item.id === savedBackMediaId) || media[1] || media[0] || null;
     const frontImage =
       product.featuredMedia?.preview?.image?.url || media[0]?.image?.url || "";
+    const frontPrintWidthCm = positiveNumber(product.frontPrintWidthCm?.value);
+    const frontPrintHeightCm = positiveNumber(product.frontPrintHeightCm?.value);
+    const backPrintWidthCm =
+      positiveNumber(product.backPrintWidthCm?.value) || frontPrintWidthCm;
+    const backPrintHeightCm =
+      positiveNumber(product.backPrintHeightCm?.value) || frontPrintHeightCm;
 
     return json({
       ok: true,
       front: {
         label: "Front",
         imageUrl: frontImage,
-        printWidthCm: positiveNumber(product.frontPrintWidthCm?.value),
-        printHeightCm: positiveNumber(product.frontPrintHeightCm?.value),
+        printWidthCm: frontPrintWidthCm,
+        printHeightCm: frontPrintHeightCm,
       },
       back: {
         enabled: product.backEnabled?.value === "true" && Boolean(backMedia?.image?.url),
@@ -222,8 +228,8 @@ export async function action({ request }: { request: Request }) {
         top: numberOr(product.backTop?.value, 22),
         width: numberOr(product.backWidth?.value, 30),
         height: numberOr(product.backHeight?.value, 45),
-        printWidthCm: positiveNumber(product.backPrintWidthCm?.value),
-        printHeightCm: positiveNumber(product.backPrintHeightCm?.value),
+        printWidthCm: backPrintWidthCm,
+        printHeightCm: backPrintHeightCm,
       },
     });
   } catch (error) {
