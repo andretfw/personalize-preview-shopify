@@ -10,9 +10,10 @@ export default function Support() {
 
         <section className={styles.section}>
           <div className={styles.notice}>
-            For direct support, use the support contact shown on the LivePrint Preview
-            Shopify App Store listing. Include your store domain, the product you are
-            testing, and a short description of what happened.
+            For direct support, email{" "}
+            <a href="mailto:fruttataco@gmail.com">fruttataco@gmail.com</a>. Include your
+            store domain, the product you are testing, and a short description of what
+            happened.
           </div>
         </section>
 
