@@ -859,7 +859,7 @@
         "_Design confirmed": aggregateConfirmed ? "Yes" : "No",
         "_Personalized sides": personalizedSides.map((side) => side.label).join(", "),
       };
-      if (personalizedSides.length > 1) {
+      if (personalizedSides.length > 0) {
         properties["Print sides"] = personalizedSides.map((side) => side.label).join(" + ");
       }
       personalizedSides.forEach((side) => {
