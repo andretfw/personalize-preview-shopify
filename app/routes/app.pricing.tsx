@@ -33,6 +33,7 @@ type PricingProduct = {
 };
 
 const INTERNAL_TAG = "personalize-preview-internal";
+const PRICING_SCOPES = ["read_publications", "write_publications"];
 
 function moneyNumber(value: string | null | undefined) {
   const parsed = Number(value);
@@ -43,6 +44,10 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Shopify could not complete the request.";
 }
 
+function hasPricingAccess(granted: string[]) {
+  return PRICING_SCOPES.every((scope) => granted.includes(scope));
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, scopes } = await authenticate.admin(request);
 
@@ -50,7 +55,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let pricingAccessError = "";
   try {
     const detail = await scopes.query();
-    pricingAccessGranted = detail.granted.includes("write_publications");
+    pricingAccessGranted = hasPricingAccess(detail.granted);
   } catch (error) {
     pricingAccessError = `Could not verify Shopify publication access: ${errorMessage(error)}`;
   }
@@ -112,7 +117,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "request-pricing-access") {
     try {
-      await scopes.request(["write_publications"]);
+      await scopes.request(PRICING_SCOPES);
       return { ok: true, intent };
     } catch (error) {
       if (error instanceof Response) throw error;
@@ -177,7 +182,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     let publicationAccess = false;
     try {
       const detail = await scopes.query();
-      publicationAccess = detail.granted.includes("write_publications");
+      publicationAccess = hasPricingAccess(detail.granted);
     } catch (error) {
       return { ok: false, intent, errors: [errorMessage(error)] };
     }
@@ -346,7 +351,7 @@ export default function Pricing() {
           >
             <div style={{ fontSize: 15, fontWeight: 780 }}>Allow paid add-ons</div>
             <div style={{ marginTop: 6, color: "#6d6047", fontSize: 13, lineHeight: 1.5 }}>
-              Shopify needs one optional permission so Personalize Preview can create and publish
+              Shopify needs optional publication permissions so Personalize Preview can create and publish
               the hidden add-on product used to charge the Back-side fee. The add-on stays unlisted.
             </div>
             {pricingAccessError ? (
