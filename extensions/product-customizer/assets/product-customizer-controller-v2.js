@@ -909,12 +909,19 @@
         showError("Please upload artwork before confirming this product.");
         return;
       }
+      const sidesToSave = personalizedSides.filter(
+        (side) => !side.confirmed || !side.proofUrl,
+      );
       const activeKey = currentKey;
       try {
         setConfirming(true, "Saving design…");
         continueButton.disabled = true;
-        setProofStatus("Saving artwork and approved proofs…");
-        for (const side of personalizedSides) {
+        setProofStatus(
+          sidesToSave.length > 0
+            ? "Saving changed artwork and approved proofs…"
+            : "Checking saved designs…",
+        );
+        for (const side of sidesToSave) {
           setConfirming(true, `Saving ${side.label}…`);
           applySide(side.key, { keepFileInput: true });
           await nextFrame();
@@ -931,7 +938,7 @@
         continueButton.textContent = originalContinueText;
       } catch (error) {
         console.error("Personalization confirmation failed:", error);
-        personalizedSides.forEach((side) => { side.confirmed = false; });
+        sidesToSave.forEach((side) => { side.confirmed = false; });
         setAggregateConfirmed(false);
         showError(error instanceof Error ? error.message : "The design could not be confirmed.");
       } finally {
