@@ -9,35 +9,20 @@ const ATTRIBUTE_MAP = [
   ["personalized", "_Personalized"],
   ["designConfirmed", "_Design confirmed"],
   ["personalizedSides", "_Personalized sides"],
-  ["printSides", "Print sides"],
   ["frontArtworkPreview", "_Front artwork preview"],
   ["frontArtworkFile", "_Front artwork file"],
-  ["frontShopifyFileId", "_Front Shopify file ID"],
   ["frontApprovedProof", "_Front approved proof"],
   ["frontPrintQuality", "_Front print quality"],
   ["frontPrintSize", "_Front print size"],
   ["frontArtworkPlacement", "_Front artwork placement"],
-  ["frontTextCustomization", "_Front text customization"],
   ["frontText", "Front text"],
   ["backArtworkPreview", "_Back artwork preview"],
   ["backArtworkFile", "_Back artwork file"],
-  ["backShopifyFileId", "_Back Shopify file ID"],
   ["backApprovedProof", "_Back approved proof"],
   ["backPrintQuality", "_Back print quality"],
   ["backPrintSize", "_Back print size"],
   ["backArtworkPlacement", "_Back artwork placement"],
-  ["backTextCustomization", "_Back text customization"],
   ["backText", "Back text"],
-  ["artworkPreview", "_Artwork preview"],
-  ["artworkFile", "_Artwork file"],
-  ["shopifyFileId", "_Shopify file ID"],
-  ["approvedDesignProof", "_Approved design proof"],
-  ["artworkPlacement", "_Artwork placement"],
-  ["textCustomization", "_Text customization"],
-  ["customText", "Custom text"],
-  ["printQuality", "_Print quality"],
-  ["printSize", "_Print size"],
-  ["printSide", "_Print side"],
 ];
 
 function attributeValue(attribute) {
@@ -87,7 +72,7 @@ function buildExpandOperation(line, presentmentCurrencyRate) {
 
   return {
     cartLineId: line.id,
-    title: merchandise.product?.title || merchandise.title,
+    title: merchandise.product?.title,
     expandedCartItems: [
       {
         merchandiseId: merchandise.id,
