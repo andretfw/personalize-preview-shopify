@@ -2,10 +2,6 @@
 
 Prepared for the first public release of **LivePrint Preview**, developed by Fruttata.
 
-## Item to finalize before submission
-
-1. **Support email** — use a real monitored email address in the Shopify App Store support field and public Support page.
-
 The public app name is locked as **LivePrint Preview**. Internal technical identifiers such as the Worker URL and app-proxy path remain unchanged to avoid breaking the production integration.
 
 ---
@@ -33,6 +29,7 @@ Use **Shopify App Pricing** in the Partner Dashboard. Set the welcome link to `/
 
 - **Public app name:** LivePrint Preview
 - **Developer / publisher:** Fruttata
+- **Support email:** fruttataco@gmail.com
 
 ## App card subtitle
 
@@ -185,9 +182,11 @@ Keep the video focused on setup and expected results and avoid showing private c
 - [x] In-app theme-extension onboarding prepared
 - [x] Final brand-first public app name selected: LivePrint Preview
 - [x] `shopify.app.toml` public app name aligned with LivePrint Preview
-- [ ] Real monitored support email entered in App Store listing and public Support page
+- [x] Real monitored support email selected: fruttataco@gmail.com
+- [x] Public Support, Privacy, and Terms pages include the support email
+- [ ] Support email entered in the Shopify App Store listing
 - [ ] Shopify App Pricing plan created in Partner Dashboard
-- [ ] Latest app version deployed with `shopify app deploy`
+- [x] Latest app version deployed with `shopify app deploy` (LivePrint Preview v33)
 - [ ] Production environment variables/secrets verified
 - [ ] Fresh-store end-to-end test completed
 - [ ] Theme extension tested in at least one current Online Store 2.0 theme
