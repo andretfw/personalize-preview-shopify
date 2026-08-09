@@ -1,13 +1,12 @@
 # Shopify App Store submission pack
 
-Prepared for the first public release of the product-personalization app.
+Prepared for the first public release of **LivePrint Preview**, developed by Fruttata.
 
-## Two items to finalize before submission
+## Item to finalize before submission
 
-1. **Final public app name** — Shopify recommends a unique, brand-first name of 30 characters or fewer. `Personalize Preview` is the current working name, but it is descriptive/generic and should be replaced with the final brand-first listing name before submission.
-2. **Support email** — use a real monitored email address in the Shopify App Store support field.
+1. **Support email** — use a real monitored email address in the Shopify App Store support field and public Support page.
 
-Everything below can be used as the first-pass listing copy once those two items are finalized.
+The public app name is locked as **LivePrint Preview**. Internal technical identifiers such as the Worker URL and app-proxy path remain unchanged to avoid breaking the production integration.
 
 ---
 
@@ -29,6 +28,11 @@ Why this price: comparable Shopify product-personalization apps commonly start a
 Use **Shopify App Pricing** in the Partner Dashboard. Set the welcome link to `/app`.
 
 ---
+
+## App identity
+
+- **Public app name:** LivePrint Preview
+- **Developer / publisher:** Fruttata
 
 ## App card subtitle
 
@@ -94,7 +98,7 @@ Do not use browser chrome, desktop backgrounds, reviews, statistics, pricing, Sh
 
 - 1200 × 1200 PNG or JPEG
 - Square corners; Shopify rounds them automatically
-- Simple brand mark, no screenshot and no Shopify trademark
+- Simple LivePrint Preview brand mark, no screenshot and no Shopify trademark
 
 ### Feature image
 
@@ -126,7 +130,7 @@ Show the bulk product setup screen so merchants understand that multiple product
 
 ## Reviewer setup instructions
 
-1. Install the app on the review store.
+1. Install LivePrint Preview on the review store.
 2. Open **Home** in the embedded app.
 3. Click **Add customizer to product template** in the onboarding panel.
 4. In Shopify Theme Editor, add/save the **Product customizer** app block on a product template.
@@ -150,7 +154,7 @@ No third-party account is required for the core flow.
 
 Record one continuous English-language screencast showing:
 
-1. App install/open in Shopify Admin.
+1. LivePrint Preview install/open in Shopify Admin.
 2. The four-step onboarding panel.
 3. Theme-editor deep link and Product customizer block placement.
 4. Product selection and printable-area configuration.
@@ -179,8 +183,9 @@ Keep the video focused on setup and expected results and avoid showing private c
 - [x] Unused metaobject permissions removed
 - [x] Public Privacy, Terms, and Support pages prepared
 - [x] In-app theme-extension onboarding prepared
-- [ ] Final brand-first public app name selected and aligned with `shopify.app.toml`
-- [ ] Real monitored support email entered in App Store listing
+- [x] Final brand-first public app name selected: LivePrint Preview
+- [x] `shopify.app.toml` public app name aligned with LivePrint Preview
+- [ ] Real monitored support email entered in App Store listing and public Support page
 - [ ] Shopify App Pricing plan created in Partner Dashboard
 - [ ] Latest app version deployed with `shopify app deploy`
 - [ ] Production environment variables/secrets verified
