@@ -4,22 +4,22 @@ export default function Support() {
   return (
     <main className={styles.page}>
       <article className={styles.shell}>
-        <p className={styles.eyebrow}>Personalize Preview</p>
+        <p className={styles.eyebrow}>LivePrint Preview</p>
         <h1 className={styles.title}>Support</h1>
         <p className={styles.updated}>Setup and troubleshooting</p>
 
         <section className={styles.section}>
           <div className={styles.notice}>
-            For direct support, use the support contact shown on the Personalize
-            Preview Shopify App Store listing. Include your store domain, the product
-            you are testing, and a short description of what happened.
+            For direct support, use the support contact shown on the LivePrint Preview
+            Shopify App Store listing. Include your store domain, the product you are
+            testing, and a short description of what happened.
           </div>
         </section>
 
         <section className={styles.section}>
           <h2>Quick setup</h2>
           <ol>
-            <li>Install Personalize Preview in Shopify Admin.</li>
+            <li>Install LivePrint Preview in Shopify Admin.</li>
             <li>Add the Product customizer app block to your product template.</li>
             <li>Open the app and choose a product.</li>
             <li>Position and size the printable area.</li>

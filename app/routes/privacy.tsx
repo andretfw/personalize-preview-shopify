@@ -4,13 +4,13 @@ export default function PrivacyPolicy() {
   return (
     <main className={styles.page}>
       <article className={styles.shell}>
-        <p className={styles.eyebrow}>Personalize Preview</p>
+        <p className={styles.eyebrow}>LivePrint Preview</p>
         <h1 className={styles.title}>Privacy Policy</h1>
         <p className={styles.updated}>Last updated: August 8, 2026</p>
 
         <section className={styles.section}>
           <p>
-            This Privacy Policy explains how Personalize Preview processes information
+            This Privacy Policy explains how LivePrint Preview processes information
             when Shopify merchants install and use the app and when shoppers use the
             product personalization experience on a merchant&apos;s storefront.
           </p>
@@ -86,10 +86,10 @@ export default function PrivacyPolicy() {
           <h2>Privacy requests</h2>
           <p>
             Shoppers should normally direct privacy requests to the Shopify merchant
-            they purchased from. Personalize Preview receives and responds to Shopify&apos;s
+            they purchased from. LivePrint Preview receives and responds to Shopify&apos;s
             mandatory customer data-request, customer-redaction, and shop-redaction
             compliance webhooks. For app-specific questions, use the support contact
-            provided on the Personalize Preview Shopify App Store listing.
+            provided on the LivePrint Preview Shopify App Store listing.
           </p>
         </section>
 

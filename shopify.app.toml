@@ -2,7 +2,7 @@
 # https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "913c5aca61e254c4ffbb9c0b8dea2a65"
-name = "personalize-preview"
+name = "LivePrint Preview"
 application_url = "https://personalize-preview-shopify.tfwandre.workers.dev"
 embedded = true
 

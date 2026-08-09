@@ -22,7 +22,7 @@ export default function App() {
     <main className={styles.index}>
       <section className={styles.content}>
         <div className={styles.badge}>Shopify product personalization</div>
-        <h1 className={styles.heading}>Personalize Preview</h1>
+        <h1 className={styles.heading}>LivePrint Preview</h1>
         <p className={styles.text}>
           Let shoppers upload artwork, add text, and preview a personalized product
           before adding it to cart.
