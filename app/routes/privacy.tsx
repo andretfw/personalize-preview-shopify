@@ -88,8 +88,8 @@ export default function PrivacyPolicy() {
             Shoppers should normally direct privacy requests to the Shopify merchant
             they purchased from. LivePrint Preview receives and responds to Shopify&apos;s
             mandatory customer data-request, customer-redaction, and shop-redaction
-            compliance webhooks. For app-specific questions, use the support contact
-            provided on the LivePrint Preview Shopify App Store listing.
+            compliance webhooks. For app-specific questions, email{" "}
+            <a href="mailto:fruttataco@gmail.com">fruttataco@gmail.com</a>.
           </p>
         </section>
 
