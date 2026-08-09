@@ -1,3 +1,5 @@
+import { ensureBackSurchargeCartTransform } from "./cart-transform.server";
+
 type AdminClient = {
   graphql: (
     query: string,
@@ -331,6 +333,7 @@ export async function ensureBackPersonalizationFee(
   await keepFeeProductHidden(admin, product.id, input.parentTitle);
   await updateFeeVariant(admin, product.id, variantId, input.amount);
   await publishFeeProduct(admin, product.id);
+  await ensureBackSurchargeCartTransform(admin);
 
   return variantId;
 }
