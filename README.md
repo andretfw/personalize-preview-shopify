@@ -1,6 +1,6 @@
-# Fruttata Product Personalizer
+# LivePrint Preview
 
-A Shopify app and theme app extension for previewing customer artwork and text directly on a product before the personalized item is added to cart.
+A Shopify app by Fruttata for previewing customer artwork and text directly on a product before the personalized item is added to cart.
 
 ## What it does
 
